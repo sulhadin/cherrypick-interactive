@@ -368,7 +368,7 @@ async function main() {
             await setPkgVersion(argv['version-file'], computedNextVersion)
             await git.add([argv['version-file']])
             const msg = argv['version-commit-message'].replace('{{version}}', computedNextVersion)
-            await git.commit(msg)
+            await git.raw(['commit', '--no-verify', '-m', msg]);
 
             log(chalk.green(`✓ package.json updated and committed: ${msg}`))
 
