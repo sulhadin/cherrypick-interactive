@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-
 import chalk from 'chalk'
+import { promises as fsPromises } from 'fs'
 import inquirer from 'inquirer'
+import { spawn } from 'node:child_process'
 import simpleGit from 'simple-git'
 import yargs from 'yargs'
 
@@ -41,6 +42,39 @@ const argv = yargs(hideBin(process.argv))
         type: 'boolean',
         default: false,
         describe: 'Print what would be cherry-picked and exit.'
+    })
+    .option('semantic-versioning', {
+        type: 'boolean',
+        default: false,
+        describe: 'Compute next semantic version from selected (or missing) commits.'
+    })
+    .option('current-version', {
+        type: 'string',
+        describe: 'Current version (X.Y.Z). Required when --semantic-versioning is set.'
+    })
+    .option('create-release', {
+        type: 'boolean',
+        default: false,
+        describe: 'Create a release branch from --main named release/<computed-version> before cherry-picking.'
+    })
+    .option('push-release', {
+        type: 'boolean',
+        default: true,
+        describe: 'After creating the release branch, push and set upstream (origin).'
+    })
+    .option('draft-pr', {
+        type: 'boolean',
+        default: false,
+        describe: 'Create the release PR as a draft.'
+    })
+    .option('version-file', {
+        type: 'string',
+        describe: 'Path to package.json (read current version; optional replacement for --current-version)'
+    })
+    .option('version-commit-message', {
+        type: 'string',
+        default: 'chore(release): bump version to {{version}}',
+        describe: 'Commit message template for version bump. Use {{version}} placeholder.'
     })
     .help()
     .alias('h', 'help')
@@ -126,6 +160,94 @@ async function cherryPickSequential(hashes) {
     }
 }
 
+/**
+ * Semantic version bumping
+ * @returns {Promise<void>}
+ */
+function parseVersion(v) {
+    const m = String(v || '')
+        .trim()
+        .match(/^(\d+)\.(\d+)\.(\d+)$/)
+    if (!m) {
+        throw new Error(`Invalid --current-version "${v}". Expected X.Y.Z`)
+    }
+    return { major: +m[1], minor: +m[2], patch: +m[3] }
+}
+
+function incrementVersion(version, bump) {
+    const cur = parseVersion(version)
+    if (bump === 'major') {
+        return `${cur.major + 1}.0.0`
+    }
+    if (bump === 'minor') {
+        return `${cur.major}.${cur.minor + 1}.0`
+    }
+    if (bump === 'patch') {
+        return `${cur.major}.${cur.minor}.${cur.patch + 1}`
+    }
+    return `${cur.major}.${cur.minor}.${cur.patch}`
+}
+
+function normalizeMessage(msg) {
+    // normalize whitespace; keep case-insensitive matching
+    return (msg || '').replace(/\r\n/g, '\n')
+}
+
+// Returns "major" | "minor" | "patch" | null for a single commit message
+function classifySingleCommit(messageBody) {
+    const body = normalizeMessage(messageBody)
+
+    // Major
+    if (/\bBREAKING[- _]CHANGE(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'major'
+    }
+
+    // Minor
+    if (/(^|\n)\s*(\*?\s*)?feat(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'minor'
+    }
+
+    // Patch
+    if (/(^|\n)\s*(\*?\s*)?(fix|perf)(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'patch'
+    }
+
+    return null
+}
+
+// Given many commits, collapse to a single bump level
+function collapseBumps(levels) {
+    if (levels.includes('major')) {
+        return 'major'
+    }
+    if (levels.includes('minor')) {
+        return 'minor'
+    }
+    if (levels.includes('patch')) {
+        return 'patch'
+    }
+    return null
+}
+
+// Fetch full commit messages (%B) for SHAs and compute bump
+async function computeSemanticBumpForCommits(hashes, gitRawFn) {
+    if (!hashes.length) {
+        return null
+    }
+
+    const levels = []
+    for (const h of hashes) {
+        const msg = await gitRawFn(['show', '--format=%B', '-s', h])
+        const level = classifySingleCommit(msg)
+        if (level) {
+            levels.push(level)
+        }
+        if (level === 'major') {
+            break
+        } // early exit if major is found
+    }
+    return collapseBumps(levels)
+}
 async function main() {
     try {
         if (!argv['no-fetch']) {
@@ -148,11 +270,10 @@ async function main() {
             return
         }
 
-        // Prepare bottom→top ordering support
         const indexByHash = new Map(missing.map((c, i) => [c.hash, i])) // 0=newest, larger=older
 
         let selected
-        if (argv.yes) {
+        if (argv['all-yes']) {
             selected = missing.map((m) => m.hash)
         } else {
             selected = await selectCommitsInteractive(missing)
@@ -162,7 +283,6 @@ async function main() {
             }
         }
 
-        // Bottom → Top (oldest → newest)
         const bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a))
 
         if (argv.dry_run || argv['dry-run']) {
@@ -174,9 +294,111 @@ async function main() {
             return
         }
 
+        if (argv['version-file'] && !argv['current-version']) {
+            const currentVersionFromPkg = await getPkgVersion(argv['version-file'])
+            argv['current-version'] = currentVersionFromPkg
+        }
+
+        let computedNextVersion = argv['current-version']
+        if (argv['semantic-versioning']) {
+            if (!argv['current-version']) {
+                throw new Error(' --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)')
+            }
+
+            // Bump is based on the commits you are about to apply (selected).
+            const bump = await computeSemanticBumpForCommits(bottomToTop, gitRaw)
+
+            computedNextVersion = bump ? incrementVersion(argv['current-version'], bump) : argv['current-version']
+
+            log('')
+            log(chalk.magenta('Semantic Versioning'))
+            log(
+                `  Current: ${chalk.bold(argv['current-version'])}  ` +
+                `Detected bump: ${chalk.bold(bump || 'none')}  ` +
+                `Next: ${chalk.bold(computedNextVersion)}`
+            )
+        }
+
+        if (argv['create-release']) {
+            if (!argv['semantic-versioning'] || !argv['current-version']) {
+                throw new Error(' --create-release requires --semantic-versioning and --current-version X.Y.Z')
+            }
+            if (!computedNextVersion) {
+                throw new Error('Unable to determine release version. Check semantic-versioning inputs.')
+            }
+
+            const releaseBranch = `release/${computedNextVersion}`
+            await ensureBranchDoesNotExistLocally(releaseBranch)
+            const startPoint = argv.main // e.g., 'origin/main' or a local ref
+
+            const changelogBody = await buildChangelogBody({
+                version: computedNextVersion,
+                hashes: bottomToTop,
+                gitRawFn: gitRaw
+            })
+
+            await fsPromises.writeFile('RELEASE_CHANGELOG.md', changelogBody, 'utf8')
+            log(chalk.gray(`✅ Generated changelog for ${releaseBranch} → RELEASE_CHANGELOG.md`))
+
+            log(chalk.cyan(`\nCreating ${chalk.bold(releaseBranch)} from ${chalk.bold(startPoint)}...`))
+
+            await git.checkoutBranch(releaseBranch, startPoint)
+
+            log(chalk.green(`✓ Ready on ${chalk.bold(releaseBranch)}. Cherry-picking will apply here.`))
+        } else {
+            // otherwise we stay on the current branch
+            log(chalk.bold(`Base branch: ${currentBranch}`))
+        }
+
         log(chalk.cyan(`\nCherry-picking ${bottomToTop.length} commit(s) onto ${currentBranch} (oldest → newest)...\n`))
+
         await cherryPickSequential(bottomToTop)
-        log(chalk.green(`\n✅ Done on ${currentBranch}`))
+
+        if (argv['push-release']) {
+            const baseBranchForGh = stripOrigin(argv.main) // 'origin/main' -> 'main'
+            const prTitle = `Release ${computedNextVersion}`
+            const releaseBranch = `release/${computedNextVersion}`
+
+            const onBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD'])
+            if (!onBranch.startsWith(releaseBranch)) {
+                throw new Error(`Version update should happen on a release branch. Current: ${onBranch}`)
+            }
+
+            log(chalk.cyan(`\nUpdating ${argv['version-file']} version → ${computedNextVersion} ...`))
+            await setPkgVersion(argv['version-file'], computedNextVersion)
+            await git.add([argv['version-file']])
+            const msg = argv['version-commit-message'].replace('{{version}}', computedNextVersion)
+            await git.commit(msg)
+
+            log(chalk.green(`✓ package.json updated and committed: ${msg}`))
+
+            await git.push(['-u', 'origin', releaseBranch, '--no-verify'])
+
+            const ghArgs = [
+                'pr',
+                'create',
+                '--base',
+                baseBranchForGh,
+                '--head',
+                releaseBranch,
+                '--title',
+                prTitle,
+                '--body-file',
+                'RELEASE_CHANGELOG.md'
+            ]
+            if (argv['draft-pr']) {
+                ghArgs.push('--draft')
+            }
+
+            await runGh(ghArgs)
+            log(chalk.gray(`Pushed ${onBranch} with version bump.`))
+        }
+
+        const finalBranch = argv['create-release']
+            ? await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']) // should be release/*
+            : currentBranch
+
+        log(chalk.green(`\n✅ Done on ${finalBranch}`))
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`))
         process.exit(1)
@@ -184,3 +406,106 @@ async function main() {
 }
 
 main()
+
+/**
+ * Utils
+ */
+
+async function ensureBranchDoesNotExistLocally(branchName) {
+    const branches = await git.branchLocal()
+    if (branches.all.includes(branchName)) {
+        throw new Error(
+            `Release branch "${branchName}" already exists locally. ` + `Please delete it or choose a different version.`
+        )
+    }
+}
+
+async function buildChangelogBody({ version, hashes, gitRawFn }) {
+    const today = new Date().toISOString().slice(0, 10)
+    const header = version ? `## Release ${version} — ${today}` : `## Release — ${today}`
+
+    const breakings = []
+    const features = []
+    const fixes = []
+    const others = []
+
+    for (const h of hashes) {
+        const msg = await gitRawFn(['show', '--format=%B', '-s', h])
+        const level = classifySingleCommit(msg)
+
+        const subject = msg.split(/\r?\n/)[0].trim() // first line of commit message
+        const shaDisplay = shortSha(h)
+
+        switch (level) {
+            case 'major':
+                breakings.push(`${shaDisplay} ${subject}`)
+                break
+            case 'minor':
+                features.push(`${shaDisplay} ${subject}`)
+                break
+            case 'patch':
+                fixes.push(`${shaDisplay} ${subject}`)
+                break
+            default:
+                others.push(`${shaDisplay} ${subject}`)
+                break
+        }
+    }
+
+    const sections = []
+    if (breakings.length) {
+        sections.push(`### ✨ Breaking Changes\n${breakings.join('\n')}`)
+    }
+    if (features.length) {
+        sections.push(`### ✨ Features\n${features.join('\n')}`)
+    }
+    if (fixes.length) {
+        sections.push(`### 🐛 Fixes\n${fixes.join('\n')}`)
+    }
+    if (others.length) {
+        sections.push(`### 🧹 Others\n${others.join('\n')}`)
+    }
+
+    return `${header}\n\n${sections.join('\n\n')}\n`
+}
+function shortSha(sha) {
+    return String(sha).slice(0, 7)
+}
+
+function stripOrigin(ref) {
+    return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref
+}
+
+async function runGh(args) {
+    return new Promise((resolve, reject) => {
+        const p = spawn('gh', args, { stdio: 'inherit' })
+        p.on('error', reject)
+        p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`gh exited ${code}`))))
+    })
+}
+async function readJson(filePath) {
+    const raw = await fsPromises.readFile(filePath, 'utf8')
+    return JSON.parse(raw)
+}
+
+async function writeJson(filePath, data) {
+    const text = JSON.stringify(data, null, 2) + '\n'
+    await fsPromises.writeFile(filePath, text, 'utf8')
+}
+
+/** Read package.json version; throw if missing */
+async function getPkgVersion(pkgPath) {
+    const pkg = await readJson(pkgPath)
+    const v = pkg && pkg.version
+    if (!v) {
+        throw new Error(`No "version" field found in ${pkgPath}`)
+    }
+    return v
+}
+
+/** Update package.json version in-place */
+async function setPkgVersion(pkgPath, nextVersion) {
+    const pkg = await readJson(pkgPath)
+    pkg.version = nextVersion
+    await writeJson(pkgPath, pkg)
+}
