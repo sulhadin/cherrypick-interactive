@@ -2,8 +2,11 @@
   "name": "cherrypick-interactive",
   "version": "1.0.0",
   "description": "Interactively cherry-pick commits that are in dev but not in main, using subject-based comparison.",
+  "main": "cli.js",
+  "bin": {
+    "cherrypick-interactive": "./cli.js"
+  },
   "type": "module",
-  "bin": "cli.js",
   "engines": {
     "node": ">=20"
   },
