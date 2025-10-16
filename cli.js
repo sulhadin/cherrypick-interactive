@@ -45,7 +45,7 @@ const argv = yargs(hideBin(process.argv))
     })
     .option('semantic-versioning', {
         type: 'boolean',
-        default: false,
+        default: true,
         describe: 'Compute next semantic version from selected (or missing) commits.'
     })
     .option('current-version', {
@@ -54,7 +54,7 @@ const argv = yargs(hideBin(process.argv))
     })
     .option('create-release', {
         type: 'boolean',
-        default: false,
+        default: true,
         describe: 'Create a release branch from --main named release/<computed-version> before cherry-picking.'
     })
     .option('push-release', {
@@ -69,6 +69,7 @@ const argv = yargs(hideBin(process.argv))
     })
     .option('version-file', {
         type: 'string',
+        default: './package.json',
         describe: 'Path to package.json (read current version; optional replacement for --current-version)'
     })
     .option('version-commit-message', {
@@ -129,6 +130,7 @@ async function selectCommitsInteractive(missing) {
         }),
         new inquirer.Separator(chalk.gray('── Oldest commits ──'))
     ]
+    const termHeight = process.stdout.rows || 24 // fallback for non-TTY environments
 
     const { selected } = await inquirer.prompt([
         {
@@ -136,28 +138,251 @@ async function selectCommitsInteractive(missing) {
             name: 'selected',
             message: `Select commits to cherry-pick (${missing.length} missing):`,
             choices,
-            pageSize: Math.min(20, Math.max(8, missing.length))
+            pageSize: Math.max(10, Math.min(termHeight - 5, missing.length))
         }
     ])
 
     return selected
 }
 
+async function handleCherryPickConflict(hash) {
+    while (true) {
+        err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${hash.slice(0, 7)}).`))
+        await showConflictsList() // prints conflicted files (if any)
+
+        const { action } = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'action',
+                message: 'Choose how to proceed:',
+                choices: [
+                    { name: 'Skip this commit', value: 'skip' },
+                    { name: 'Resolve conflicts now', value: 'resolve' },
+                    { name: 'Revoke and cancel (abort entire sequence)', value: 'abort' }
+                ]
+            }
+        ])
+
+        if (action === 'skip') {
+            await gitRaw(['cherry-pick', '--skip'])
+            log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${hash.slice(0, 7)})`)}`))
+            return 'skipped'
+        }
+
+        if (action === 'abort') {
+            await gitRaw(['cherry-pick', '--abort'])
+            throw new Error('Cherry-pick aborted by user.')
+        }
+
+        const res = await conflictsResolutionWizard(hash)
+        if (res === 'continued') {
+            // Successfully continued; this commit is now applied
+            return 'continued'
+        }
+    }
+}
+
+async function getConflictedFiles() {
+    const out = await gitRaw(['diff', '--name-only', '--diff-filter=U'])
+    return out ? out.split('\n').filter(Boolean) : []
+}
+
+async function assertNoUnmerged() {
+    const files = await getConflictedFiles()
+    return files.length === 0
+}
+
+async function runBin(bin, args) {
+    return new Promise((resolve, reject) => {
+        const p = spawn(bin, args, { stdio: 'inherit' })
+        p.on('error', reject)
+        p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${bin} exited ${code}`))))
+    })
+}
+
+async function showConflictsList() {
+    const files = await getConflictedFiles()
+
+    if (!files.length) {
+        log(chalk.green('No conflicted files reported by git.'))
+        return []
+    }
+    err(chalk.yellow('Conflicted files:'))
+    for (const f of files) {
+        err('  - ' + f)
+    }
+    return files
+}
+
+async function resolveSingleFileWizard(file) {
+    const { action } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'action',
+            message: `How to resolve "${file}"?`,
+            choices: [
+                { name: 'Use ours (current branch)', value: 'ours' },
+                { name: 'Use theirs (picked commit)', value: 'theirs' },
+                { name: 'Open in editor', value: 'edit' },
+                { name: 'Show diff', value: 'diff' },
+                { name: 'Mark resolved (stage file)', value: 'stage' },
+                { name: 'Back', value: 'back' }
+            ]
+        }
+    ])
+
+    try {
+        if (action === 'ours') {
+            await gitRaw(['checkout', '--ours', file])
+            await git.add([file])
+            log(chalk.green(`✓ Applied "ours" and staged: ${file}`))
+        } else if (action === 'theirs') {
+            await gitRaw(['checkout', '--theirs', file])
+            await git.add([file])
+            log(chalk.green(`✓ Applied "theirs" and staged: ${file}`))
+        } else if (action === 'edit') {
+            const editor = process.env.EDITOR || 'vi'
+            log(chalk.cyan(`Opening ${file} in ${editor}...`))
+            await runBin(editor, [file])
+            // user edits and saves, so now they can stage
+            const { stageNow } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'stageNow',
+                    message: 'File edited. Stage it now?',
+                    default: true
+                }
+            ])
+            if (stageNow) {
+                await git.add([file])
+                log(chalk.green(`✓ Staged: ${file}`))
+            }
+        } else if (action === 'diff') {
+            const d = await gitRaw(['diff', file])
+            err(chalk.gray(`\n--- diff: ${file} ---\n${d}\n--- end diff ---\n`))
+        } else if (action === 'stage') {
+            await git.add([file])
+            log(chalk.green(`✓ Staged: ${file}`))
+        }
+    } catch (e) {
+        err(chalk.red(`Action failed on ${file}: ${e.message || e}`))
+    }
+
+    return action
+}
+
+async function conflictsResolutionWizard(hash) {
+    // Loop until no conflicts remain and continue succeeds
+    while (true) {
+        const files = await showConflictsList()
+        if (files.length === 0) {
+            try {
+                await gitRaw(['cherry-pick', '--continue'])
+                const subject = await gitRaw(['show', '--format=%s', '-s', hash])
+                log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`)
+                return 'continued'
+            } catch (e) {
+                err(chalk.red('`git cherry-pick --continue` failed:'))
+                err(String(e.message || e))
+                // fall back to loop
+            }
+        }
+
+        const { choice } = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'choice',
+                message: 'Select a file to resolve or a global action:',
+                pageSize: Math.min(20, Math.max(8, files.length + 5)),
+                choices: [
+                    ...files.map((f) => ({ name: f, value: { type: 'file', file: f } })),
+                    new inquirer.Separator(chalk.gray('─ Actions ─')),
+                    { name: 'Use ours for ALL', value: { type: 'all', action: 'ours-all' } },
+                    { name: 'Use theirs for ALL', value: { type: 'all', action: 'theirs-all' } },
+                    { name: 'Stage ALL', value: { type: 'all', action: 'stage-all' } },
+                    { name: 'Launch mergetool (all)', value: { type: 'all', action: 'mergetool-all' } },
+                    { name: 'Try to continue (run --continue)', value: { type: 'global', action: 'continue' } },
+                    { name: 'Back to main conflict menu', value: { type: 'global', action: 'back' } }
+                ]
+            }
+        ])
+
+        if (!choice) {
+            continue
+        }
+        if (choice.type === 'file') {
+            await resolveSingleFileWizard(choice.file)
+            continue
+        }
+
+        if (choice.type === 'all') {
+            for (const f of files) {
+                if (choice.action === 'ours-all') {
+                    await gitRaw(['checkout', '--ours', f])
+                    await git.add([f])
+                } else if (choice.action === 'theirs-all') {
+                    await gitRaw(['checkout', '--theirs', f])
+                    await git.add([f])
+                } else if (choice.action === 'stage-all') {
+                    await git.add([f])
+                } else if (choice.action === 'mergetool-all') {
+                    await runBin('git', ['mergetool'])
+                    break // mergetool all opens sequentially; re-loop to re-check state
+                }
+            }
+            continue
+        }
+
+        if (choice.type === 'global' && choice.action === 'continue') {
+            if (await assertNoUnmerged()) {
+                try {
+                    await gitRaw(['cherry-pick', '--continue'])
+                    const subject = await gitRaw(['show', '--format=%s', '-s', hash])
+                    log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`)
+                    return 'continued'
+                } catch (e) {
+                    err(chalk.red('`--continue` failed. Resolve remaining issues and try again.'))
+                }
+            } else {
+                err(chalk.yellow('There are still unmerged files.'))
+            }
+        }
+
+        if (choice.type === 'global' && choice.action === 'back') {
+            return 'back'
+        }
+    }
+}
+
 async function cherryPickSequential(hashes) {
+    const result = { applied: 0, skipped: 0 }
+
     for (const hash of hashes) {
         try {
             await gitRaw(['cherry-pick', hash])
             const subject = await gitRaw(['show', '--format=%s', '-s', hash])
             log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`)
+            result.applied += 1
         } catch (e) {
-            err(chalk.red(`✖ Cherry-pick failed on ${hash}`))
-            err(chalk.yellow('Resolve conflicts, then run:'))
-            err(chalk.yellow('  git add -A && git cherry-pick --continue'))
-            err(chalk.yellow('Or abort:'))
-            err(chalk.yellow('  git cherry-pick --abort'))
-            throw e
+            try {
+                const action = await handleCherryPickConflict(hash)
+                if (action === 'skipped') {
+                    result.skipped += 1
+                    continue
+                }
+                if (action === 'continued') {
+                    // --continue başarıyla commit oluşturdu
+                    result.applied += 1
+                    continue
+                }
+            } catch (abortErr) {
+                err(chalk.red(`✖ Cherry-pick aborted on ${hash}`))
+                throw abortErr
+            }
         }
     }
+
+    return result
 }
 
 /**
@@ -352,7 +577,18 @@ async function main() {
 
         log(chalk.cyan(`\nCherry-picking ${bottomToTop.length} commit(s) onto ${currentBranch} (oldest → newest)...\n`))
 
-        await cherryPickSequential(bottomToTop)
+        const stats = await cherryPickSequential(bottomToTop)
+
+        log(chalk.gray(`\nSummary → applied: ${stats.applied}, skipped: ${stats.skipped}`))
+
+        if (stats.applied === 0) {
+            err(chalk.yellow('\nNo commits were cherry-picked (all were skipped or unresolved). Aborting.'))
+            // Abort any leftover state just in case
+            try {
+                await gitRaw(['cherry-pick', '--abort'])
+            } catch {}
+            throw new Error('Nothing cherry-picked')
+        }
 
         if (argv['push-release']) {
             const baseBranchForGh = stripOrigin(argv.main) // 'origin/main' -> 'main'
@@ -368,7 +604,7 @@ async function main() {
             await setPkgVersion(argv['version-file'], computedNextVersion)
             await git.add([argv['version-file']])
             const msg = argv['version-commit-message'].replace('{{version}}', computedNextVersion)
-            await git.raw(['commit', '--no-verify', '-m', msg]);
+            await git.raw(['commit', '--no-verify', '-m', msg])
 
             log(chalk.green(`✓ package.json updated and committed: ${msg}`))
 
