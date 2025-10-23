@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import chalk from 'chalk';
-import inquirer from 'inquirer';
 import { spawn } from 'node:child_process';
 import { promises as fsPromises, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import semver from 'semver';
 import simpleGit from 'simple-git';
 import updateNotifier from 'update-notifier';
 import yargs from 'yargs';
@@ -14,21 +15,20 @@ const git = simpleGit();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
 const notifier = updateNotifier({
     pkg,
-    updateCheckInterval: 0, // 12h
 });
 
-// Only print if an update is available
-if (notifier.update) {
+// Only print if a *real* newer version exists
+const upd = notifier.update;
+if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(upd.latest, pkg.version)) {
     const name = pkg.name || 'cherrypick-interactive';
-    const current = notifier.update.current;
-    const latest = notifier.update.latest;
     console.log('');
     console.log(chalk.yellow('⚠️  A new version is available'));
-    console.log(chalk.gray(`  ${name}: ${chalk.red(current)} → ${chalk.green(latest)}`));
+    console.log(chalk.gray(`  ${name}: ${chalk.red(pkg.version)} → ${chalk.green(upd.latest)}`));
     console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
 }
 
