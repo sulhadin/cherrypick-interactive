@@ -896,8 +896,6 @@ async function setPkgVersion(pkgPath, nextVersion) {
 }
 
 function parseSemverIgnore(argvValue) {
-    log(chalk.cyan(`↷ Semver ignored values:  ${chalk.dim(`(${argvValue})`)}`));
-
     if (!argvValue) return [];
     return argvValue
         .split(',')
