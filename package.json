@@ -3,14 +3,17 @@
   "version": "1.4.1",
   "description": "Interactively cherry-pick commits that are in dev but not in main, using subject-based comparison.",
   "main": "cli.js",
-  "bin": "./cli.js",
+  "bin": {
+    "cherrypick-interactive": "cli.js"
+  },
   "type": "module",
   "scripts": {
-    "publish": "npm publish --access public",
+    "prepublishOnly": "npm run build",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check .",
-    "fix": "biome check --write ."
+    "fix": "biome check --write .",
+    "release": "npm publish --access public"
   },
   "engines": {
     "node": ">=20"
@@ -25,7 +28,13 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4"
   },
-  "keywords": ["git", "cli", "cherry-pick", "interactive", "devops"],
+  "keywords": [
+    "git",
+    "cli",
+    "cherry-pick",
+    "interactive",
+    "devops"
+  ],
   "license": "MIT",
   "packageManager": "yarn@4.6.0"
 }
