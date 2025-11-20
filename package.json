@@ -1,6 +1,6 @@
 {
   "name": "cherrypick-interactive",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "Interactively cherry-pick commits that are in dev but not in main, using subject-based comparison.",
   "main": "cli.js",
   "bin": {
@@ -28,13 +28,7 @@
   "devDependencies": {
     "@biomejs/biome": "^1.9.4"
   },
-  "keywords": [
-    "git",
-    "cli",
-    "cherry-pick",
-    "interactive",
-    "devops"
-  ],
+  "keywords": ["git", "cli", "cherry-pick", "interactive", "devops"],
   "license": "MIT",
   "packageManager": "yarn@4.6.0"
 }
