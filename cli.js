@@ -1,523 +1,522 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
-import { promises as fsPromises, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import chalk from "chalk";
-import inquirer from "inquirer";
-import semver from "semver";
-import simpleGit from "simple-git";
-import updateNotifier from "update-notifier";
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
+import { spawn } from 'node:child_process';
+import { promises as fsPromises, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import chalk from 'chalk';
+import inquirer from 'inquirer';
+import semver from 'semver';
+import simpleGit from 'simple-git';
+import updateNotifier from 'update-notifier';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 const git = simpleGit();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
+const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
 const notifier = updateNotifier({
-  pkg,
+    pkg,
 });
 
 // Only print if a *real* newer version exists
 const upd = notifier.update;
-if (
-  upd &&
-  semver.valid(upd.latest) &&
-  semver.valid(pkg.version) &&
-  semver.gt(upd.latest, pkg.version)
-) {
-  const name = pkg.name || "cherrypick-interactive";
-  console.log("");
-  console.log(chalk.yellow("⚠️  A new version is available"));
-  console.log(chalk.gray(`  ${name}: ${chalk.red(pkg.version)} → ${chalk.green(upd.latest)}`));
-  console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
+if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(upd.latest, pkg.version)) {
+    const name = pkg.name || 'cherrypick-interactive';
+    console.log('');
+    console.log(chalk.yellow('⚠️  A new version is available'));
+    console.log(chalk.gray(`  ${name}: ${chalk.red(pkg.version)} → ${chalk.green(upd.latest)}`));
+    console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
 }
 
 const argv = yargs(hideBin(process.argv))
-  .scriptName("cherrypick-interactive")
-  .usage("$0 [options]")
-  .option("dev", {
-    type: "string",
-    default: "origin/dev",
-    describe: "Source branch (contains commits you want).",
-  })
-  .option("main", {
-    type: "string",
-    default: "origin/main",
-    describe: "Comparison branch (commits present here will be filtered out).",
-  })
-  .option("since", {
-    type: "string",
-    default: "1 week ago",
-    describe: 'Time window passed to git --since (e.g. "2 weeks ago", "1 month ago").',
-  })
-  .option("no-fetch", {
-    type: "boolean",
-    default: false,
-    describe: "Skip 'git fetch --prune'.",
-  })
-  .option("all-yes", {
-    type: "boolean",
-    default: false,
-    describe: "Non-interactive: cherry-pick ALL missing commits (oldest → newest).",
-  })
-  .option("dry-run", {
-    type: "boolean",
-    default: false,
-    describe: "Print what would be cherry-picked and exit.",
-  })
-  .option("semantic-versioning", {
-    type: "boolean",
-    default: true,
-    describe: "Compute next semantic version from selected (or missing) commits.",
-  })
-  .option("current-version", {
-    type: "string",
-    describe: "Current version (X.Y.Z). Required when --semantic-versioning is set.",
-  })
-  .option("create-release", {
-    type: "boolean",
-    default: true,
-    describe:
-      "Create a release branch from --main named release/<computed-version> before cherry-picking.",
-  })
-  .option("push-release", {
-    type: "boolean",
-    default: true,
-    describe: "After creating the release branch, push and set upstream (origin).",
-  })
-  .option("draft-pr", {
-    type: "boolean",
-    default: false,
-    describe: "Create the release PR as a draft.",
-  })
-  .option("version-file", {
-    type: "string",
-    default: "./package.json",
-    describe:
-      "Path to package.json (read current version; optional replacement for --current-version)",
-  })
-  .option("version-commit-message", {
-    type: "string",
-    default: "chore(release): bump version to {{version}}",
-    describe: "Commit message template for version bump. Use {{version}} placeholder.",
-  })
-  .option("semver-ignore", {
-    type: "string",
-    describe:
-      "Comma-separated regex patterns. If a commit message matches any, it will be treated as a chore for semantic versioning.",
-  })
-  .wrap(200)
-  .help()
-  .alias("h", "help")
-  .alias("v", "version").argv;
+    .scriptName('cherrypick-interactive')
+    .usage('$0 [options]')
+    .option('dev', {
+        type: 'string',
+        default: 'origin/dev',
+        describe: 'Source branch (contains commits you want).',
+    })
+    .option('main', {
+        type: 'string',
+        default: 'origin/main',
+        describe: 'Comparison branch (commits present here will be filtered out).',
+    })
+    .option('since', {
+        type: 'string',
+        default: '1 week ago',
+        describe: 'Time window passed to git --since (e.g. "2 weeks ago", "1 month ago").',
+    })
+    .option('no-fetch', {
+        type: 'boolean',
+        default: false,
+        describe: "Skip 'git fetch --prune'.",
+    })
+    .option('all-yes', {
+        type: 'boolean',
+        default: false,
+        describe: 'Non-interactive: cherry-pick ALL missing commits (oldest → newest).',
+    })
+    .option('dry-run', {
+        type: 'boolean',
+        default: false,
+        describe: 'Print what would be cherry-picked and exit.',
+    })
+    .option('semantic-versioning', {
+        type: 'boolean',
+        default: true,
+        describe: 'Compute next semantic version from selected (or missing) commits.',
+    })
+    .option('current-version', {
+        type: 'string',
+        describe: 'Current version (X.Y.Z). Required when --semantic-versioning is set.',
+    })
+    .option('create-release', {
+        type: 'boolean',
+        default: true,
+        describe: 'Create a release branch from --main named release/<computed-version> before cherry-picking.',
+    })
+    .option('push-release', {
+        type: 'boolean',
+        default: true,
+        describe: 'After creating the release branch, push and set upstream (origin).',
+    })
+    .option('draft-pr', {
+        type: 'boolean',
+        default: false,
+        describe: 'Create the release PR as a draft.',
+    })
+    .option('version-file', {
+        type: 'string',
+        default: './package.json',
+        describe: 'Path to package.json (read current version; optional replacement for --current-version)',
+    })
+    .option('version-commit-message', {
+        type: 'string',
+        default: 'chore(release): bump version to {{version}}',
+        describe: 'Commit message template for version bump. Use {{version}} placeholder.',
+    })
+    .option('ignore-semver', {
+        type: 'string',
+        describe:
+            'Comma-separated regex patterns. If a commit message matches any, it will be treated as a chore for semantic versioning.',
+    })
+    .option('ignore-commits', {
+        type: 'string',
+        describe:
+            'Comma-separated regex patterns. If a commit message matches any, it will be omitted from the commit list.',
+    })
+    .wrap(200)
+    .help()
+    .alias('h', 'help')
+    .alias('v', 'version').argv;
 
 const log = (...a) => console.log(...a);
 const err = (...a) => console.error(...a);
 
 async function gitRaw(args) {
-  const out = await git.raw(args);
-  return out.trim();
+    const out = await git.raw(args);
+    return out.trim();
 }
 
 async function getSubjects(branch) {
-  const out = await gitRaw(["log", "--no-merges", "--pretty=%s", branch]);
-  if (!out) {
-    return new Set();
-  }
-  return new Set(out.split("\n").filter(Boolean));
+    const out = await gitRaw(['log', '--no-merges', '--pretty=%s', branch]);
+    if (!out) {
+        return new Set();
+    }
+    return new Set(out.split('\n').filter(Boolean));
 }
 
 async function getDevCommits(branch, since) {
-  const out = await gitRaw(["log", "--no-merges", `--since=${since}`, "--pretty=%H %s", branch]);
+    const out = await gitRaw(['log', '--no-merges', `--since=${since}`, '--pretty=%H %s', branch]);
 
-  if (!out) {
-    return [];
-  }
-  return out.split("\n").map((line) => {
-    const firstSpace = line.indexOf(" ");
-    const hash = line.slice(0, firstSpace);
-    const subject = line.slice(firstSpace + 1);
-    return { hash, subject };
-  });
+    if (!out) {
+        return [];
+    }
+    return out.split('\n').map((line) => {
+        const firstSpace = line.indexOf(' ');
+        const hash = line.slice(0, firstSpace);
+        const subject = line.slice(firstSpace + 1);
+        return { hash, subject };
+    });
 }
 
 function filterMissing(devCommits, mainSubjects) {
-  return devCommits.filter(({ subject }) => !mainSubjects.has(subject));
+    return devCommits.filter(({ subject }) => !mainSubjects.has(subject));
 }
 
 async function selectCommitsInteractive(missing) {
-  const choices = [
-    new inquirer.Separator(chalk.gray("── Newest commits ──")),
-    ...missing.map(({ hash, subject }, idx) => {
-      // display-only trim to avoid accidental leading spaces
-      const displaySubject = subject.replace(/^[\s\u00A0]+/, "");
-      return {
-        name: `${chalk.dim(`(${hash.slice(0, 7)})`)} ${displaySubject}`,
-        value: hash,
-        short: displaySubject,
-        idx, // we keep index for oldest→newest ordering later
-      };
-    }),
-    new inquirer.Separator(chalk.gray("── Oldest commits ──")),
-  ];
-  const termHeight = process.stdout.rows || 24; // fallback for non-TTY environments
+    const choices = [
+        new inquirer.Separator(chalk.gray('── Newest commits ──')),
+        ...missing.map(({ hash, subject }, idx) => {
+            // display-only trim to avoid accidental leading spaces
+            const displaySubject = subject.replace(/^[\s\u00A0]+/, '');
+            return {
+                name: `${chalk.dim(`(${hash.slice(0, 7)})`)} ${displaySubject}`,
+                value: hash,
+                short: displaySubject,
+                idx, // we keep index for oldest→newest ordering later
+            };
+        }),
+        new inquirer.Separator(chalk.gray('── Oldest commits ──')),
+    ];
+    const termHeight = process.stdout.rows || 24; // fallback for non-TTY environments
 
-  const { selected } = await inquirer.prompt([
-    {
-      type: "checkbox",
-      name: "selected",
-      message: `Select commits to cherry-pick (${missing.length} missing):`,
-      choices,
-      pageSize: Math.max(10, Math.min(termHeight - 5, missing.length)),
-    },
-  ]);
+    const { selected } = await inquirer.prompt([
+        {
+            type: 'checkbox',
+            name: 'selected',
+            message: `Select commits to cherry-pick (${missing.length} missing):`,
+            choices,
+            pageSize: Math.max(10, Math.min(termHeight - 5, missing.length)),
+        },
+    ]);
 
-  return selected;
+    return selected;
 }
 
 async function handleCherryPickConflict(hash) {
-  if (!(await isCherryPickInProgress())) {
-    return "skipped";
-  }
-
-  while (true) {
-    err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${hash.slice(0, 7)}).`));
-    await showConflictsList(); // prints conflicted files (if any)
-
-    const { action } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "action",
-        message: "Choose how to proceed:",
-        choices: [
-          { name: "Skip this commit", value: "skip" },
-          { name: "Resolve conflicts now", value: "resolve" },
-          { name: "Revoke and cancel (abort entire sequence)", value: "abort" },
-        ],
-      },
-    ]);
-
-    if (action === "skip") {
-      await gitRaw(["cherry-pick", "--skip"]);
-      log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
-      return "skipped";
+    if (!(await isCherryPickInProgress())) {
+        return 'skipped';
     }
 
-    if (action === "abort") {
-      await gitRaw(["cherry-pick", "--abort"]);
-      throw new Error("Cherry-pick aborted by user.");
-    }
+    while (true) {
+        err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${hash.slice(0, 7)}).`));
+        await showConflictsList(); // prints conflicted files (if any)
 
-    const res = await conflictsResolutionWizard(hash);
-    if (res === "continued" || res === "skipped") {
-      return res;
+        const { action } = await inquirer.prompt([
+            {
+                type: 'select',
+                name: 'action',
+                message: 'Choose how to proceed:',
+                choices: [
+                    { name: 'Skip this commit', value: 'skip' },
+                    { name: 'Resolve conflicts now', value: 'resolve' },
+                    { name: 'Revoke and cancel (abort entire sequence)', value: 'abort' },
+                ],
+            },
+        ]);
+
+        if (action === 'skip') {
+            await gitRaw(['cherry-pick', '--skip']);
+            log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
+            return 'skipped';
+        }
+
+        if (action === 'abort') {
+            await gitRaw(['cherry-pick', '--abort']);
+            throw new Error('Cherry-pick aborted by user.');
+        }
+
+        const res = await conflictsResolutionWizard(hash);
+        if (res === 'continued' || res === 'skipped') {
+            return res;
+        }
     }
-  }
 }
 
 async function getConflictedFiles() {
-  const out = await gitRaw(["diff", "--name-only", "--diff-filter=U"]);
-  return out ? out.split("\n").filter(Boolean) : [];
+    const out = await gitRaw(['diff', '--name-only', '--diff-filter=U']);
+    return out ? out.split('\n').filter(Boolean) : [];
 }
 
 async function assertNoUnmerged() {
-  const files = await getConflictedFiles();
-  return files.length === 0;
+    const files = await getConflictedFiles();
+    return files.length === 0;
 }
 
 async function isCherryPickInProgress() {
-  try {
-    const head = await gitRaw(["rev-parse", "-q", "--verify", "CHERRY_PICK_HEAD"]);
-    return !!head;
-  } catch {
-    return false;
-  }
+    try {
+        const head = await gitRaw(['rev-parse', '-q', '--verify', 'CHERRY_PICK_HEAD']);
+        return !!head;
+    } catch {
+        return false;
+    }
 }
 
 async function hasStagedChanges() {
-  const out = await gitRaw(["diff", "--cached", "--name-only"]);
-  return !!out;
+    const out = await gitRaw(['diff', '--cached', '--name-only']);
+    return !!out;
 }
 
 async function isEmptyCherryPick() {
-  if (!(await isCherryPickInProgress())) return false;
-  const noUnmerged = await assertNoUnmerged();
-  if (!noUnmerged) return false;
-  const anyStaged = await hasStagedChanges();
-  return !anyStaged;
+    if (!(await isCherryPickInProgress())) return false;
+    const noUnmerged = await assertNoUnmerged();
+    if (!noUnmerged) return false;
+    const anyStaged = await hasStagedChanges();
+    return !anyStaged;
 }
 
 async function runBin(bin, args) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(bin, args, { stdio: "inherit" });
-    p.on("error", reject);
-    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`${bin} exited ${code}`))));
-  });
+    return new Promise((resolve, reject) => {
+        const p = spawn(bin, args, { stdio: 'inherit' });
+        p.on('error', reject);
+        p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${bin} exited ${code}`))));
+    });
 }
 
 async function showConflictsList() {
-  const files = await getConflictedFiles();
+    const files = await getConflictedFiles();
 
-  if (!files.length) {
-    log(chalk.green("No conflicted files reported by git."));
-    return [];
-  }
-  err(chalk.yellow("Conflicted files:"));
-  for (const f of files) {
-    err(`  - ${f}`);
-  }
-  return files;
+    if (!files.length) {
+        log(chalk.green('No conflicted files reported by git.'));
+        return [];
+    }
+    err(chalk.yellow('Conflicted files:'));
+    for (const f of files) {
+        err(`  - ${f}`);
+    }
+    return files;
 }
 
 async function resolveSingleFileWizard(file) {
-  const { action } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "action",
-      message: `How to resolve "${file}"?`,
-      choices: [
-        { name: "Use ours (current branch)", value: "ours" },
-        { name: "Use theirs (picked commit)", value: "theirs" },
-        { name: "Open in editor", value: "edit" },
-        { name: "Show diff", value: "diff" },
-        { name: "Mark resolved (stage file)", value: "stage" },
-        { name: "Back", value: "back" },
-      ],
-    },
-  ]);
-
-  try {
-    if (action === "ours") {
-      await gitRaw(["checkout", "--ours", file]);
-      await git.add([file]);
-      log(chalk.green(`✓ Applied "ours" and staged: ${file}`));
-    } else if (action === "theirs") {
-      await gitRaw(["checkout", "--theirs", file]);
-      await git.add([file]);
-      log(chalk.green(`✓ Applied "theirs" and staged: ${file}`));
-    } else if (action === "edit") {
-      const editor = process.env.EDITOR || "vi";
-      log(chalk.cyan(`Opening ${file} in ${editor}...`));
-      await runBin(editor, [file]);
-      // user edits and saves, so now they can stage
-      const { stageNow } = await inquirer.prompt([
+    const { action } = await inquirer.prompt([
         {
-          type: "confirm",
-          name: "stageNow",
-          message: "File edited. Stage it now?",
-          default: true,
+            type: 'select',
+            name: 'action',
+            message: `How to resolve "${file}"?`,
+            choices: [
+                { name: 'Use ours (current branch)', value: 'ours' },
+                { name: 'Use theirs (picked commit)', value: 'theirs' },
+                { name: 'Open in editor', value: 'edit' },
+                { name: 'Show diff', value: 'diff' },
+                { name: 'Mark resolved (stage file)', value: 'stage' },
+                { name: 'Back', value: 'back' },
+            ],
         },
-      ]);
-      if (stageNow) {
-        await git.add([file]);
-        log(chalk.green(`✓ Staged: ${file}`));
-      }
-    } else if (action === "diff") {
-      const d = await gitRaw(["diff", file]);
-      err(chalk.gray(`\n--- diff: ${file} ---\n${d}\n--- end diff ---\n`));
-    } else if (action === "stage") {
-      await git.add([file]);
-      log(chalk.green(`✓ Staged: ${file}`));
-    }
-  } catch (e) {
-    err(chalk.red(`Action failed on ${file}: ${e.message || e}`));
-  }
+    ]);
 
-  return action;
+    try {
+        if (action === 'ours') {
+            await gitRaw(['checkout', '--ours', file]);
+            await git.add([file]);
+            log(chalk.green(`✓ Applied "ours" and staged: ${file}`));
+        } else if (action === 'theirs') {
+            await gitRaw(['checkout', '--theirs', file]);
+            await git.add([file]);
+            log(chalk.green(`✓ Applied "theirs" and staged: ${file}`));
+        } else if (action === 'edit') {
+            const editor = process.env.EDITOR || 'vi';
+            log(chalk.cyan(`Opening ${file} in ${editor}...`));
+            await runBin(editor, [file]);
+            // user edits and saves, so now they can stage
+            const { stageNow } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'stageNow',
+                    message: 'File edited. Stage it now?',
+                    default: true,
+                },
+            ]);
+            if (stageNow) {
+                await git.add([file]);
+                log(chalk.green(`✓ Staged: ${file}`));
+            }
+        } else if (action === 'diff') {
+            const d = await gitRaw(['diff', file]);
+            err(chalk.gray(`\n--- diff: ${file} ---\n${d}\n--- end diff ---\n`));
+        } else if (action === 'stage') {
+            await git.add([file]);
+            log(chalk.green(`✓ Staged: ${file}`));
+        }
+    } catch (e) {
+        err(chalk.red(`Action failed on ${file}: ${e.message || e}`));
+    }
+
+    return action;
 }
 
 async function conflictsResolutionWizard(hash) {
-  // Loop until no conflicts remain and continue succeeds
-  while (true) {
-    const files = await showConflictsList();
+    // Loop until no conflicts remain and continue succeeds
+    while (true) {
+        const files = await showConflictsList();
 
-    if (files.length === 0) {
-      // If there are no conflicted files, either continue or detect empty pick
-      if (await isEmptyCherryPick()) {
-        err(chalk.yellow("The previous cherry-pick is now empty."));
-        const { emptyAction } = await inquirer.prompt([
-          {
-            type: "list",
-            name: "emptyAction",
-            message: "No staged changes for this pick. Choose next step:",
-            choices: [
-              { name: "Skip this commit (recommended)", value: "skip" },
-              { name: "Create an empty commit", value: "empty-commit" },
-              { name: "Back to conflict menu", value: "back" },
-            ],
-          },
+        if (files.length === 0) {
+            // If there are no conflicted files, either continue or detect empty pick
+            if (await isEmptyCherryPick()) {
+                err(chalk.yellow('The previous cherry-pick is now empty.'));
+                const { emptyAction } = await inquirer.prompt([
+                    {
+                        type: 'select',
+                        name: 'emptyAction',
+                        message: 'No staged changes for this pick. Choose next step:',
+                        choices: [
+                            { name: 'Skip this commit (recommended)', value: 'skip' },
+                            { name: 'Create an empty commit', value: 'empty-commit' },
+                            { name: 'Back to conflict menu', value: 'back' },
+                        ],
+                    },
+                ]);
+
+                if (emptyAction === 'skip') {
+                    await gitRaw(['cherry-pick', '--skip']);
+                    log(chalk.yellow(`↷ Skipped empty pick ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
+                    return 'skipped';
+                }
+                if (emptyAction === 'empty-commit') {
+                    const fullMessage = await gitRaw(['show', '--format=%B', '-s', hash]);
+                    await gitRaw(['commit', '--allow-empty', '-m', fullMessage]);
+                    const subject = await gitRaw(['show', '--format=%s', '-s', 'HEAD']);
+                    log(`${chalk.green('✓')} (empty) cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+                    return 'continued';
+                }
+                if (emptyAction === 'back') {
+                    // ← FIX #1: really go back to the conflict menu (do NOT try --continue)
+                    continue;
+                }
+                // (re-loop)
+            } else {
+                try {
+                    // Use -C to copy the original commit message
+                    await gitRaw(['commit', '-C', hash]);
+                    const subject = await gitRaw(['show', '--format=%s', '-s', 'HEAD']);
+                    log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+                    return 'continued';
+                } catch (e) {
+                    err(chalk.red('`git cherry-pick --continue` failed:'));
+                    err(String(e.message || e));
+                    // fall back to loop
+                }
+            }
+        }
+
+        const { choice } = await inquirer.prompt([
+            {
+                type: 'select',
+                name: 'choice',
+                message: 'Select a file to resolve or a global action:',
+                pageSize: Math.min(20, Math.max(8, files.length + 5)),
+                choices: [
+                    ...files.map((f) => ({ name: f, value: { type: 'file', file: f } })),
+                    new inquirer.Separator(chalk.gray('─ Actions ─')),
+                    { name: 'Use ours for ALL', value: { type: 'all', action: 'ours-all' } },
+                    { name: 'Use theirs for ALL', value: { type: 'all', action: 'theirs-all' } },
+                    { name: 'Stage ALL', value: { type: 'all', action: 'stage-all' } },
+                    { name: 'Launch mergetool (all)', value: { type: 'all', action: 'mergetool-all' } },
+                    {
+                        name: 'Try to continue (run --continue)',
+                        value: { type: 'global', action: 'continue' },
+                    },
+                    { name: 'Back to main conflict menu', value: { type: 'global', action: 'back' } },
+                ],
+            },
         ]);
 
-        if (emptyAction === "skip") {
-          await gitRaw(["cherry-pick", "--skip"]);
-          log(chalk.yellow(`↷ Skipped empty pick ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
-          return "skipped";
-        }
-        if (emptyAction === "empty-commit") {
-          const subject = await gitRaw(["show", "--format=%s", "-s", hash]);
-          await gitRaw(["commit", "--allow-empty", "-m", subject]);
-          log(
-            `${chalk.green("✓")} (empty) cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`,
-          );
-          return "continued";
-        }
-        if (emptyAction === "back") {
-          // ← FIX #1: really go back to the conflict menu (do NOT try --continue)
-          continue;
-        }
-        // (re-loop)
-      } else {
-        try {
-          await gitRaw(["cherry-pick", "--continue"]);
-          const subject = await gitRaw(["show", "--format=%s", "-s", hash]);
-          log(`${chalk.green("✓")} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
-          return "continued";
-        } catch (e) {
-          err(chalk.red("`git cherry-pick --continue` failed:"));
-          err(String(e.message || e));
-          // fall back to loop
-        }
-      }
-    }
-
-    const { choice } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "choice",
-        message: "Select a file to resolve or a global action:",
-        pageSize: Math.min(20, Math.max(8, files.length + 5)),
-        choices: [
-          ...files.map((f) => ({ name: f, value: { type: "file", file: f } })),
-          new inquirer.Separator(chalk.gray("─ Actions ─")),
-          { name: "Use ours for ALL", value: { type: "all", action: "ours-all" } },
-          { name: "Use theirs for ALL", value: { type: "all", action: "theirs-all" } },
-          { name: "Stage ALL", value: { type: "all", action: "stage-all" } },
-          { name: "Launch mergetool (all)", value: { type: "all", action: "mergetool-all" } },
-          {
-            name: "Try to continue (run --continue)",
-            value: { type: "global", action: "continue" },
-          },
-          { name: "Back to main conflict menu", value: { type: "global", action: "back" } },
-        ],
-      },
-    ]);
-
-    if (!choice) {
-      continue;
-    }
-
-    if (choice.type === "file") {
-      await resolveSingleFileWizard(choice.file);
-      continue;
-    }
-
-    if (choice.type === "all") {
-      for (const f of files) {
-        if (choice.action === "ours-all") {
-          await gitRaw(["checkout", "--ours", f]);
-          await git.add([f]);
-        } else if (choice.action === "theirs-all") {
-          await gitRaw(["checkout", "--theirs", f]);
-          await git.add([f]);
-        } else if (choice.action === "stage-all") {
-          await git.add([f]);
-        } else if (choice.action === "mergetool-all") {
-          await runBin("git", ["mergetool"]);
-          break; // mergetool all opens sequentially; re-loop to re-check state
-        }
-      }
-      continue;
-    }
-
-    if (choice.type === "global" && choice.action === "continue") {
-      if (await assertNoUnmerged()) {
-        // If nothing is staged, treat as empty pick and prompt
-        if (!(await hasStagedChanges())) {
-          err(chalk.yellow("No staged changes found for this cherry-pick."));
-          const { emptyAction } = await inquirer.prompt([
-            {
-              type: "list",
-              name: "emptyAction",
-              message: "This pick seems empty. Choose next step:",
-              choices: [
-                { name: "Skip this commit", value: "skip" },
-                { name: "Create empty commit", value: "empty-commit" },
-                { name: "Back", value: "back" },
-              ],
-            },
-          ]);
-
-          if (emptyAction === "skip") {
-            await gitRaw(["cherry-pick", "--skip"]);
-            log(chalk.yellow(`↷ Skipped empty pick ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
-            return "skipped";
-          }
-          if (emptyAction === "empty-commit") {
-            const subject = await gitRaw(["show", "--format=%s", "-s", hash]);
-            await gitRaw(["commit", "--allow-empty", "-m", subject]);
-            log(
-              `${chalk.green("✓")} (empty) cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`,
-            );
-            return "continued";
-          }
-          if (emptyAction === "back") {
-            // ← FIX #2: actually go back to the conflict menu; do NOT try --continue
+        if (!choice) {
             continue;
-          }
         }
 
-        try {
-          await gitRaw(["cherry-pick", "--continue"]);
-          const subject = await gitRaw(["show", "--format=%s", "-s", hash]);
-          log(`${chalk.green("✓")} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
-          return "continued";
-        } catch (e) {
-          err(chalk.red("`--continue` failed. Resolve remaining issues and try again."));
+        if (choice.type === 'file') {
+            await resolveSingleFileWizard(choice.file);
+            continue;
         }
-      } else {
-        err(chalk.yellow("There are still unmerged files."));
-      }
-    }
 
-    if (choice.type === "global" && choice.action === "back") {
-      return "back";
+        if (choice.type === 'all') {
+            for (const f of files) {
+                if (choice.action === 'ours-all') {
+                    await gitRaw(['checkout', '--ours', f]);
+                    await git.add([f]);
+                } else if (choice.action === 'theirs-all') {
+                    await gitRaw(['checkout', '--theirs', f]);
+                    await git.add([f]);
+                } else if (choice.action === 'stage-all') {
+                    await git.add([f]);
+                } else if (choice.action === 'mergetool-all') {
+                    await runBin('git', ['mergetool']);
+                    break; // mergetool all opens sequentially; re-loop to re-check state
+                }
+            }
+            continue;
+        }
+
+        if (choice.type === 'global' && choice.action === 'continue') {
+            if (await assertNoUnmerged()) {
+                // If nothing is staged, treat as empty pick and prompt
+                if (!(await hasStagedChanges())) {
+                    err(chalk.yellow('No staged changes found for this cherry-pick.'));
+                    const { emptyAction } = await inquirer.prompt([
+                        {
+                            type: 'select',
+                            name: 'emptyAction',
+                            message: 'This pick seems empty. Choose next step:',
+                            choices: [
+                                { name: 'Skip this commit', value: 'skip' },
+                                { name: 'Create empty commit', value: 'empty-commit' },
+                                { name: 'Back', value: 'back' },
+                            ],
+                        },
+                    ]);
+
+                    if (emptyAction === 'skip') {
+                        await gitRaw(['cherry-pick', '--skip']);
+                        log(chalk.yellow(`↷ Skipped empty pick ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
+                        return 'skipped';
+                    }
+
+                    if (emptyAction === 'empty-commit') {
+                        const fullMessage = await gitRaw(['show', '--format=%B', '-s', hash]);
+                        await gitRaw(['commit', '--allow-empty', '-m', fullMessage]);
+                        const subject = await gitRaw(['show', '--format=%s', '-s', 'HEAD']);
+                        log(`${chalk.green('✓')} (empty) cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+                        return 'continued';
+                    }
+                    if (emptyAction === 'back') {
+                        // ← FIX #2: actually go back to the conflict menu; do NOT try --continue
+                        continue;
+                    }
+                }
+
+                try {
+                    // Use -C to copy the original commit message
+                    await gitRaw(['commit', '-C', hash]);
+                    const subject = await gitRaw(['show', '--format=%s', '-s', 'HEAD']);
+                    log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+                    return 'continued';
+                } catch (e) {
+                    err(chalk.red('`--continue` failed. Resolve remaining issues and try again.'));
+                }
+            } else {
+                err(chalk.yellow('There are still unmerged files.'));
+            }
+        }
+
+        if (choice.type === 'global' && choice.action === 'back') {
+            return 'back';
+        }
     }
-  }
 }
 
 async function cherryPickSequential(hashes) {
-  const result = { applied: 0, skipped: 0 };
+    const result = { applied: 0, skipped: 0 };
 
-  for (const hash of hashes) {
-    try {
-      await gitRaw(["cherry-pick", hash]);
-      const subject = await gitRaw(["show", "--format=%s", "-s", hash]);
-      log(`${chalk.green("✓")} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
-      result.applied += 1;
-    } catch (e) {
-      try {
-        const action = await handleCherryPickConflict(hash);
-        if (action === "skipped") {
-          result.skipped += 1;
-          continue;
+    for (const hash of hashes) {
+        try {
+            await gitRaw(['cherry-pick', hash]);
+            const subject = await gitRaw(['show', '--format=%s', '-s', hash]);
+            log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+            result.applied += 1;
+        } catch (e) {
+            try {
+                const action = await handleCherryPickConflict(hash);
+                if (action === 'skipped') {
+                    result.skipped += 1;
+                    continue;
+                }
+                if (action === 'continued') {
+                    // --continue başarıyla commit oluşturdu
+                    result.applied += 1;
+                }
+            } catch (abortErr) {
+                err(chalk.red(`✖ Cherry-pick aborted on ${hash}`));
+                throw abortErr;
+            }
         }
-        if (action === "continued") {
-          // --continue başarıyla commit oluşturdu
-          result.applied += 1;
-        }
-      } catch (abortErr) {
-        err(chalk.red(`✖ Cherry-pick aborted on ${hash}`));
-        throw abortErr;
-      }
     }
-  }
 
-  return result;
+    return result;
 }
 
 /**
@@ -525,282 +524,302 @@ async function cherryPickSequential(hashes) {
  * @returns {Promise<void>}
  */
 function parseVersion(v) {
-  const m = String(v || "")
-    .trim()
-    .match(/^(\d+)\.(\d+)\.(\d+)$/);
-  if (!m) {
-    throw new Error(`Invalid --current-version "${v}". Expected X.Y.Z`);
-  }
-  return { major: +m[1], minor: +m[2], patch: +m[3] };
+    const m = String(v || '')
+        .trim()
+        .match(/^(\d+)\.(\d+)\.(\d+)$/);
+    if (!m) {
+        throw new Error(`Invalid --current-version "${v}". Expected X.Y.Z`);
+    }
+    return { major: +m[1], minor: +m[2], patch: +m[3] };
 }
 
 function incrementVersion(version, bump) {
-  const cur = parseVersion(version);
-  if (bump === "major") {
-    return `${cur.major + 1}.0.0`;
-  }
-  if (bump === "minor") {
-    return `${cur.major}.${cur.minor + 1}.0`;
-  }
-  if (bump === "patch") {
-    return `${cur.major}.${cur.minor}.${cur.patch + 1}`;
-  }
-  return `${cur.major}.${cur.minor}.${cur.patch}`;
+    const cur = parseVersion(version);
+    if (bump === 'major') {
+        return `${cur.major + 1}.0.0`;
+    }
+    if (bump === 'minor') {
+        return `${cur.major}.${cur.minor + 1}.0`;
+    }
+    if (bump === 'patch') {
+        return `${cur.major}.${cur.minor}.${cur.patch + 1}`;
+    }
+    return `${cur.major}.${cur.minor}.${cur.patch}`;
 }
 
 function normalizeMessage(msg) {
-  // normalize whitespace; keep case-insensitive matching
-  return (msg || "").replace(/\r\n/g, "\n");
+    // normalize whitespace; keep case-insensitive matching
+    return (msg || '').replace(/\r\n/g, '\n');
 }
 
 // Returns "major" | "minor" | "patch" | null for a single commit message
 function classifySingleCommit(messageBody) {
-  const body = normalizeMessage(messageBody);
+    const body = normalizeMessage(messageBody);
 
-  // Major
-  if (/\bBREAKING[- _]CHANGE(?:\([^)]+\))?\s*:?/i.test(body)) {
-    return "major";
-  }
+    // Major
+    if (/\bBREAKING[- _]CHANGE(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'major';
+    }
 
-  // Minor
-  if (/(^|\n)\s*(\*?\s*)?feat(?:\([^)]+\))?\s*:?/i.test(body)) {
-    return "minor";
-  }
+    // Minor
+    if (/(^|\n)\s*(\*?\s*)?feat(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'minor';
+    }
 
-  // Patch
-  if (/(^|\n)\s*(\*?\s*)?(fix|perf)(?:\([^)]+\))?\s*:?/i.test(body)) {
-    return "patch";
-  }
+    // Patch
+    if (/(^|\n)\s*(\*?\s*)?(fix|perf)(?:\([^)]+\))?\s*:?/i.test(body)) {
+        return 'patch';
+    }
 
-  return null;
+    return null;
 }
 
 // Given many commits, collapse to a single bump level
 function collapseBumps(levels) {
-  if (levels.includes("major")) {
-    return "major";
-  }
-  if (levels.includes("minor")) {
-    return "minor";
-  }
-  if (levels.includes("patch")) {
-    return "patch";
-  }
-  return null;
+    if (levels.includes('major')) {
+        return 'major';
+    }
+    if (levels.includes('minor')) {
+        return 'minor';
+    }
+    if (levels.includes('patch')) {
+        return 'patch';
+    }
+    return null;
 }
 
 // Fetch full commit messages (%B) for SHAs and compute bump
 async function computeSemanticBumpForCommits(hashes, gitRawFn, semverignore) {
-  if (!hashes.length) {
-    return null;
-  }
-
-  const levels = [];
-  const semverIgnorePatterns = parseSemverIgnore(semverignore);
-
-  for (const h of hashes) {
-    const msg = await gitRawFn(["show", "--format=%B", "-s", h]);
-    const subject = msg.split(/\r?\n/)[0].trim();
-    let level = classifySingleCommit(msg);
-
-    // 🔹 Apply --semverignore (treat matched commits as chores). Use full message (subject + body).
-    if (semverIgnorePatterns.length > 0 && matchesAnyPattern(msg, semverIgnorePatterns)) {
-      level = null;
+    if (!hashes.length) {
+        return null;
     }
 
-    if (level) {
-      levels.push(level);
-      if (level === "major") break; // early exit if major is found
-    }
-  }
+    const levels = [];
+    const semverIgnorePatterns = parseSemverIgnore(semverignore);
 
-  return collapseBumps(levels);
+    for (const h of hashes) {
+        const msg = await gitRawFn(['show', '--format=%B', '-s', h]);
+        const subject = msg.split(/\r?\n/)[0].trim();
+        let level = classifySingleCommit(msg);
+
+        // 🔹 Apply --semverignore (treat matched commits as chores). Use full message (subject + body).
+        if (semverIgnorePatterns.length > 0 && matchesAnyPattern(msg, semverIgnorePatterns)) {
+            level = null;
+        }
+
+        if (level) {
+            levels.push(level);
+            if (level === 'major') break; // early exit if major is found
+        }
+    }
+
+    return collapseBumps(levels);
 }
 
 async function main() {
-  try {
-    if (!argv["no-fetch"]) {
-      log(chalk.gray("Fetching remotes (git fetch --prune)..."));
-      await git.fetch(["--prune"]);
+    try {
+        // Check if gh CLI is installed when push-release is enabled
+        if (argv['push-release']) {
+            const ghInstalled = await checkGhCli();
+            if (!ghInstalled) {
+                err(chalk.yellow('\n⚠️  GitHub CLI (gh) is not installed or not in PATH.'));
+                err(chalk.gray('   The --push-release flag requires gh CLI to create pull requests.\n'));
+                err(chalk.cyan('   Install it from: https://cli.github.com/'));
+                err(chalk.cyan('   Or run without --push-release to skip PR creation.\n'));
+
+                const { proceed } = await inquirer.prompt([
+                    {
+                        type: 'confirm',
+                        name: 'proceed',
+                        message: 'Continue without creating a PR?',
+                        default: false,
+                    },
+                ]);
+
+                if (!proceed) {
+                    log(chalk.yellow('Aborted by user.'));
+                    return;
+                }
+
+                // Disable push-release if user chooses to continue
+                argv['push-release'] = false;
+            }
+        }
+
+        if (!argv['no-fetch']) {
+            log(chalk.gray('Fetching remotes (git fetch --prune)...'));
+            await git.fetch(['--prune']);
+        }
+
+        const currentBranch = (await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD'])) || 'HEAD';
+
+        log(chalk.gray(`Comparing subjects since ${argv.since}`));
+        log(chalk.gray(`Dev:  ${argv.dev}`));
+        log(chalk.gray(`Main: ${argv.main}`));
+
+        const [devCommits, mainSubjects] = await Promise.all([getDevCommits(argv.dev, argv.since), getSubjects(argv.main)]);
+
+        const missing = filterMissing(devCommits, mainSubjects);
+
+        // Filter out commits matching --ignore-commits patterns
+        const ignoreCommitsPatterns = parseIgnoreCommits(argv['ignore-commits']);
+        const filteredMissing =
+            ignoreCommitsPatterns.length > 0
+                ? missing.filter(({ subject }) => !shouldIgnoreCommit(subject, ignoreCommitsPatterns))
+                : missing;
+
+        if (filteredMissing.length === 0) {
+            log(chalk.green('✅ No missing commits found in the selected window.'));
+            return;
+        }
+
+        const semverIgnore = argv['ignore-semver'];
+        const indexByHash = new Map(filteredMissing.map((c, i) => [c.hash, i])); // 0=newest, larger=older
+
+        let selected;
+        if (argv['all-yes']) {
+            selected = filteredMissing.map((m) => m.hash);
+        } else {
+            selected = await selectCommitsInteractive(filteredMissing);
+            if (!selected.length) {
+                log(chalk.yellow('No commits selected. Exiting.'));
+                return;
+            }
+        }
+
+        const bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
+
+        if (argv.dry_run || argv['dry-run']) {
+            log(chalk.cyan('\n--dry-run: would cherry-pick (oldest → newest):'));
+            for (const h of bottomToTop) {
+                const subj = await gitRaw(['show', '--format=%s', '-s', h]);
+                log(`- ${chalk.dim(`(${h.slice(0, 7)})`)} ${subj}`);
+            }
+            return;
+        }
+
+        if (argv['version-file'] && !argv['current-version']) {
+            const currentVersionFromPkg = await getPkgVersion(argv['version-file']);
+            argv['current-version'] = currentVersionFromPkg;
+        }
+
+        let computedNextVersion = argv['current-version'];
+        if (argv['semantic-versioning']) {
+            if (!argv['current-version']) {
+                throw new Error(' --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)');
+            }
+
+            // Bump is based on the commits you are about to apply (selected).
+            const bump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore);
+
+            computedNextVersion = bump ? incrementVersion(argv['current-version'], bump) : argv['current-version'];
+
+            log('');
+            log(chalk.magenta('Semantic Versioning'));
+            log(
+                `  Current: ${chalk.bold(argv['current-version'])}  ` +
+                `Detected bump: ${chalk.bold(bump || 'none')}  ` +
+                `Next: ${chalk.bold(computedNextVersion)}`,
+            );
+        }
+
+        if (argv['create-release']) {
+            if (!argv['semantic-versioning'] || !argv['current-version']) {
+                throw new Error(' --create-release requires --semantic-versioning and --current-version X.Y.Z');
+            }
+            if (!computedNextVersion) {
+                throw new Error('Unable to determine release version. Check semantic-versioning inputs.');
+            }
+
+            const releaseBranch = `release/${computedNextVersion}`;
+            const startPoint = argv.main; // e.g., 'origin/main' or a local ref
+            await ensureReleaseBranchFresh(releaseBranch, startPoint);
+
+            const changelogBody = await buildChangelogBody({
+                version: computedNextVersion,
+                hashes: bottomToTop,
+                gitRawFn: gitRaw,
+                semverIgnore, // raw flag value
+            });
+
+            await fsPromises.writeFile('RELEASE_CHANGELOG.md', changelogBody, 'utf8');
+            await gitRaw(['reset', 'RELEASE_CHANGELOG.md']);
+            log(chalk.gray(`✅ Generated changelog for ${releaseBranch} → RELEASE_CHANGELOG.md`));
+
+            log(chalk.cyan(`\nCreating ${chalk.bold(releaseBranch)} from ${chalk.bold(startPoint)}...`));
+
+            await git.checkoutBranch(releaseBranch, startPoint);
+
+            log(chalk.green(`✓ Ready on ${chalk.bold(releaseBranch)}. Cherry-picking will apply here.`));
+        } else {
+            // otherwise we stay on the current branch
+            log(chalk.bold(`Base branch: ${currentBranch}`));
+        }
+
+        log(chalk.cyan(`\nCherry-picking ${bottomToTop.length} commit(s) onto ${currentBranch} (oldest → newest)...\n`));
+
+        const stats = await cherryPickSequential(bottomToTop);
+
+        log(chalk.gray(`\nSummary → applied: ${stats.applied}, skipped: ${stats.skipped}`));
+
+        if (stats.applied === 0) {
+            err(chalk.yellow('\nNo commits were cherry-picked (all were skipped or unresolved). Aborting.'));
+            // Abort any leftover state just in case
+            try {
+                await gitRaw(['cherry-pick', '--abort']);
+            } catch {}
+            throw new Error('Nothing cherry-picked');
+        }
+
+        if (argv['push-release']) {
+            const baseBranchForGh = stripOrigin(argv.main); // 'origin/main' -> 'main'
+            const prTitle = `Release ${computedNextVersion}`;
+            const releaseBranch = `release/${computedNextVersion}`;
+
+            const onBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']);
+            if (!onBranch.startsWith(releaseBranch)) {
+                throw new Error(`Version update should happen on a release branch. Current: ${onBranch}`);
+            }
+
+            log(chalk.cyan(`\nUpdating ${argv['version-file']} version → ${computedNextVersion} ...`));
+            await setPkgVersion(argv['version-file'], computedNextVersion);
+            await git.add([argv['version-file']]);
+            const msg = argv['version-commit-message'].replace('{{version}}', computedNextVersion);
+            await git.raw(['commit', '--no-verify', '-m', msg]);
+
+            log(chalk.green(`✓ package.json updated and committed: ${msg}`));
+
+            await git.push(['-u', 'origin', releaseBranch, '--no-verify']);
+
+            const ghArgs = [
+                'pr',
+                'create',
+                '--base',
+                baseBranchForGh,
+                '--head',
+                releaseBranch,
+                '--title',
+                prTitle,
+                '--body-file',
+                'RELEASE_CHANGELOG.md',
+            ];
+            if (argv['draft-pr']) {
+                ghArgs.push('--draft');
+            }
+
+            await runGh(ghArgs);
+            log(chalk.gray(`Pushed ${onBranch} with version bump.`));
+        }
+
+        const finalBranch = argv['create-release']
+            ? await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']) // should be release/*
+            : currentBranch;
+
+        log(chalk.green(`\n✅ Done on ${finalBranch}`));
+    } catch (e) {
+        err(chalk.red(`\n❌ Error: ${e.message || e}`));
+        process.exit(1);
     }
-
-    const currentBranch = (await gitRaw(["rev-parse", "--abbrev-ref", "HEAD"])) || "HEAD";
-
-    log(chalk.gray(`Comparing subjects since ${argv.since}`));
-    log(chalk.gray(`Dev:  ${argv.dev}`));
-    log(chalk.gray(`Main: ${argv.main}`));
-
-    const [devCommits, mainSubjects] = await Promise.all([
-      getDevCommits(argv.dev, argv.since),
-      getSubjects(argv.main),
-    ]);
-
-    const missing = filterMissing(devCommits, mainSubjects);
-
-    if (missing.length === 0) {
-      log(chalk.green("✅ No missing commits found in the selected window."));
-      return;
-    }
-
-    const semverIgnore = argv["semver-ignore"];
-    const indexByHash = new Map(missing.map((c, i) => [c.hash, i])); // 0=newest, larger=older
-
-    let selected;
-    if (argv["all-yes"]) {
-      selected = missing.map((m) => m.hash);
-    } else {
-      selected = await selectCommitsInteractive(missing);
-      if (!selected.length) {
-        log(chalk.yellow("No commits selected. Exiting."));
-        return;
-      }
-    }
-
-    const bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
-
-    if (argv.dry_run || argv["dry-run"]) {
-      log(chalk.cyan("\n--dry-run: would cherry-pick (oldest → newest):"));
-      for (const h of bottomToTop) {
-        const subj = await gitRaw(["show", "--format=%s", "-s", h]);
-        log(`- ${chalk.dim(`(${h.slice(0, 7)})`)} ${subj}`);
-      }
-      return;
-    }
-
-    if (argv["version-file"] && !argv["current-version"]) {
-      const currentVersionFromPkg = await getPkgVersion(argv["version-file"]);
-      argv["current-version"] = currentVersionFromPkg;
-    }
-
-    let computedNextVersion = argv["current-version"];
-    if (argv["semantic-versioning"]) {
-      if (!argv["current-version"]) {
-        throw new Error(
-          " --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)",
-        );
-      }
-
-      // Bump is based on the commits you are about to apply (selected).
-      const bump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore);
-
-      computedNextVersion = bump
-        ? incrementVersion(argv["current-version"], bump)
-        : argv["current-version"];
-
-      log("");
-      log(chalk.magenta("Semantic Versioning"));
-      log(
-        `  Current: ${chalk.bold(argv["current-version"])}  ` +
-          `Detected bump: ${chalk.bold(bump || "none")}  ` +
-          `Next: ${chalk.bold(computedNextVersion)}`,
-      );
-    }
-
-    if (argv["create-release"]) {
-      if (!argv["semantic-versioning"] || !argv["current-version"]) {
-        throw new Error(
-          " --create-release requires --semantic-versioning and --current-version X.Y.Z",
-        );
-      }
-      if (!computedNextVersion) {
-        throw new Error("Unable to determine release version. Check semantic-versioning inputs.");
-      }
-
-      const releaseBranch = `release/${computedNextVersion}`;
-      const startPoint = argv.main; // e.g., 'origin/main' or a local ref
-      await ensureReleaseBranchFresh(releaseBranch, startPoint);
-
-      const changelogBody = await buildChangelogBody({
-        version: computedNextVersion,
-        hashes: bottomToTop,
-        gitRawFn: gitRaw,
-        semverIgnore, // raw flag value
-      });
-
-      await fsPromises.writeFile("RELEASE_CHANGELOG.md", changelogBody, "utf8");
-      await gitRaw(["reset", "RELEASE_CHANGELOG.md"]);
-      log(chalk.gray(`✅ Generated changelog for ${releaseBranch} → RELEASE_CHANGELOG.md`));
-
-      log(chalk.cyan(`\nCreating ${chalk.bold(releaseBranch)} from ${chalk.bold(startPoint)}...`));
-
-      await git.checkoutBranch(releaseBranch, startPoint);
-
-      log(chalk.green(`✓ Ready on ${chalk.bold(releaseBranch)}. Cherry-picking will apply here.`));
-    } else {
-      // otherwise we stay on the current branch
-      log(chalk.bold(`Base branch: ${currentBranch}`));
-    }
-
-    log(
-      chalk.cyan(
-        `\nCherry-picking ${bottomToTop.length} commit(s) onto ${currentBranch} (oldest → newest)...\n`,
-      ),
-    );
-
-    const stats = await cherryPickSequential(bottomToTop);
-
-    log(chalk.gray(`\nSummary → applied: ${stats.applied}, skipped: ${stats.skipped}`));
-
-    if (stats.applied === 0) {
-      err(
-        chalk.yellow("\nNo commits were cherry-picked (all were skipped or unresolved). Aborting."),
-      );
-      // Abort any leftover state just in case
-      try {
-        await gitRaw(["cherry-pick", "--abort"]);
-      } catch {}
-      throw new Error("Nothing cherry-picked");
-    }
-
-    if (argv["push-release"]) {
-      const baseBranchForGh = stripOrigin(argv.main); // 'origin/main' -> 'main'
-      const prTitle = `Release ${computedNextVersion}`;
-      const releaseBranch = `release/${computedNextVersion}`;
-
-      const onBranch = await gitRaw(["rev-parse", "--abbrev-ref", "HEAD"]);
-      if (!onBranch.startsWith(releaseBranch)) {
-        throw new Error(`Version update should happen on a release branch. Current: ${onBranch}`);
-      }
-
-      log(chalk.cyan(`\nUpdating ${argv["version-file"]} version → ${computedNextVersion} ...`));
-      await setPkgVersion(argv["version-file"], computedNextVersion);
-      await git.add([argv["version-file"]]);
-      const msg = argv["version-commit-message"].replace("{{version}}", computedNextVersion);
-      await git.raw(["commit", "--no-verify", "-m", msg]);
-
-      log(chalk.green(`✓ package.json updated and committed: ${msg}`));
-
-      await git.push(["-u", "origin", releaseBranch, "--no-verify"]);
-
-      const ghArgs = [
-        "pr",
-        "create",
-        "--base",
-        baseBranchForGh,
-        "--head",
-        releaseBranch,
-        "--title",
-        prTitle,
-        "--body-file",
-        "RELEASE_CHANGELOG.md",
-      ];
-      if (argv["draft-pr"]) {
-        ghArgs.push("--draft");
-      }
-
-      await runGh(ghArgs);
-      log(chalk.gray(`Pushed ${onBranch} with version bump.`));
-    }
-
-    const finalBranch = argv["create-release"]
-      ? await gitRaw(["rev-parse", "--abbrev-ref", "HEAD"]) // should be release/*
-      : currentBranch;
-
-    log(chalk.green(`\n✅ Done on ${finalBranch}`));
-  } catch (e) {
-    err(chalk.red(`\n❌ Error: ${e.message || e}`));
-    process.exit(1);
-  }
 }
 
 main();
@@ -810,181 +829,216 @@ main();
  */
 
 async function ensureReleaseBranchFresh(branchName, startPoint) {
-  const branches = await git.branchLocal();
-  const localExists = branches.all.includes(branchName);
-  const remoteRef = await gitRaw(["ls-remote", "--heads", "origin", branchName]);
-  const remoteExists = Boolean(remoteRef);
+    const branches = await git.branchLocal();
+    const localExists = branches.all.includes(branchName);
+    const remoteRef = await gitRaw(['ls-remote', '--heads', 'origin', branchName]);
+    const remoteExists = Boolean(remoteRef);
 
-  if (!localExists && !remoteExists) {
-    return;
-  }
-
-  const { action } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "action",
-      message: `Release branch "${branchName}" already exists${localExists ? " locally" : ""}${remoteExists ? " on origin" : ""}. How do you want to proceed? (override, abort)`,
-      choices: [
-        { name: "Override (delete existing branch and recreate)", value: "override" },
-        { name: "Abort", value: "abort" },
-      ],
-    },
-  ]);
-
-  if (action === "abort") {
-    throw new Error(`Aborted: release branch "${branchName}" already exists.`);
-  }
-
-  // Ensure we are not on the branch before deleting local copy
-  if (localExists) {
-    if (branches.current === branchName) {
-      const target = startPoint || "HEAD";
-      log(chalk.gray(`Switching to ${target} before deleting ${branchName}...`));
-      await gitRaw(["checkout", target]);
+    if (!localExists && !remoteExists) {
+        return;
     }
-    await gitRaw(["branch", "-D", branchName]);
-    log(chalk.yellow(`↷ Deleted existing local branch ${branchName}`));
-  }
 
-  if (remoteExists) {
-    try {
-      await gitRaw(["push", "origin", "--delete", branchName]);
-      log(chalk.yellow(`↷ Deleted existing remote branch origin/${branchName}`));
-    } catch (e) {
-      err(chalk.red(`Failed to delete remote branch origin/${branchName}: ${e.message || e}`));
-      throw e;
+    const { action } = await inquirer.prompt([
+        {
+            type: 'select',
+            name: 'action',
+            message: `Release branch "${branchName}" already exists${localExists ? ' locally' : ''}${
+                remoteExists ? ' on origin' : ''
+            }. How do you want to proceed? (override, abort)`,
+            choices: [
+                { name: 'Override (delete existing branch and recreate)', value: 'override' },
+                { name: 'Abort', value: 'abort' },
+            ],
+        },
+    ]);
+
+    if (action === 'abort') {
+        throw new Error(`Aborted: release branch "${branchName}" already exists.`);
     }
-  }
+
+    // Ensure we are not on the branch before deleting local copy
+    if (localExists) {
+        if (branches.current === branchName) {
+            const target = startPoint || 'HEAD';
+            log(chalk.gray(`Switching to ${target} before deleting ${branchName}...`));
+            await gitRaw(['checkout', target]);
+        }
+        await gitRaw(['branch', '-D', branchName]);
+        log(chalk.yellow(`↷ Deleted existing local branch ${branchName}`));
+    }
+
+    if (remoteExists) {
+        try {
+            await gitRaw(['push', 'origin', '--delete', branchName]);
+            log(chalk.yellow(`↷ Deleted existing remote branch origin/${branchName}`));
+        } catch (e) {
+            err(chalk.red(`Failed to delete remote branch origin/${branchName}: ${e.message || e}`));
+            throw e;
+        }
+    }
 }
 
 async function buildChangelogBody({ version, hashes, gitRawFn, semverIgnore }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const header = version ? `## Release ${version} — ${today}` : `## Release — ${today}`;
-  const semverIgnorePatterns = parseSemverIgnore(semverIgnore);
+    const today = new Date().toISOString().slice(0, 10);
+    const header = version ? `## Release ${version} — ${today}` : `## Release — ${today}`;
+    const semverIgnorePatterns = parseSemverIgnore(semverIgnore);
 
-  const breakings = [];
-  const features = [];
-  const fixes = [];
-  const others = [];
+    const breakings = [];
+    const features = [];
+    const fixes = [];
+    const others = [];
 
-  for (const h of hashes) {
-    const msg = await gitRawFn(["show", "--format=%B", "-s", h]);
+    for (const h of hashes) {
+        const msg = await gitRawFn(['show', '--format=%B', '-s', h]);
 
-    const subject = msg.split(/\r?\n/)[0].trim(); // first line of commit message
-    const shaDisplay = shortSha(h);
+        const subject = msg.split(/\r?\n/)[0].trim(); // first line of commit message
+        const shaDisplay = shortSha(h);
 
-    // normal classification first
-    let level = classifySingleCommit(msg);
+        // normal classification first
+        let level = classifySingleCommit(msg);
 
-    // ⬇ Apply semver-ignore logic
-    const matched = matchesAnyPattern(msg, semverIgnorePatterns); // evaluate against full message
-    if (matched) {
-      level = null; // drop it into "Other"
+        // ⬇ Apply ignore-semver logic
+        const matched = matchesAnyPattern(msg, semverIgnorePatterns); // evaluate against full message
+        if (matched) {
+            level = null; // drop it into "Other"
+        }
+
+        switch (level) {
+            case 'major':
+                breakings.push(`${shaDisplay} ${subject}`);
+                break;
+            case 'minor':
+                features.push(`${shaDisplay} ${subject}`);
+                break;
+            case 'patch':
+                fixes.push(`${shaDisplay} ${subject}`);
+                break;
+            default:
+                others.push(`${shaDisplay} ${subject}`);
+                break;
+        }
     }
 
-    switch (level) {
-      case "major":
-        breakings.push(`${shaDisplay} ${subject}`);
-        break;
-      case "minor":
-        features.push(`${shaDisplay} ${subject}`);
-        break;
-      case "patch":
-        fixes.push(`${shaDisplay} ${subject}`);
-        break;
-      default:
-        others.push(`${shaDisplay} ${subject}`);
-        break;
+    const sections = [];
+    if (breakings.length) {
+        sections.push(`### ✨ Breaking Changes\n${breakings.join('\n')}`);
     }
-  }
+    if (features.length) {
+        sections.push(`### ✨ Features\n${features.join('\n')}`);
+    }
+    if (fixes.length) {
+        sections.push(`### 🐛 Fixes\n${fixes.join('\n')}`);
+    }
+    if (others.length) {
+        sections.push(`### 🧹 Others\n${others.join('\n')}`);
+    }
 
-  const sections = [];
-  if (breakings.length) {
-    sections.push(`### ✨ Breaking Changes\n${breakings.join("\n")}`);
-  }
-  if (features.length) {
-    sections.push(`### ✨ Features\n${features.join("\n")}`);
-  }
-  if (fixes.length) {
-    sections.push(`### 🐛 Fixes\n${fixes.join("\n")}`);
-  }
-  if (others.length) {
-    sections.push(`### 🧹 Others\n${others.join("\n")}`);
-  }
-
-  return `${header}\n\n${sections.join("\n\n")}\n`;
+    return `${header}\n\n${sections.join('\n\n')}\n`;
 }
 function shortSha(sha) {
-  return String(sha).slice(0, 7);
+    return String(sha).slice(0, 7);
 }
 
 function stripOrigin(ref) {
-  return ref.startsWith("origin/") ? ref.slice("origin/".length) : ref;
+    return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref;
+}
+
+async function checkGhCli() {
+    return new Promise((resolve) => {
+        const p = spawn('gh', ['--version'], { stdio: 'pipe' });
+        p.on('error', () => resolve(false));
+        p.on('close', (code) => resolve(code === 0));
+    });
 }
 
 async function runGh(args) {
-  return new Promise((resolve, reject) => {
-    const p = spawn("gh", args, { stdio: "inherit" });
-    p.on("error", reject);
-    p.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`gh exited ${code}`))));
-  });
+    return new Promise((resolve, reject) => {
+        const p = spawn('gh', args, { stdio: 'inherit' });
+        p.on('error', reject);
+        p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`gh exited ${code}`))));
+    });
 }
 async function readJson(filePath) {
-  const raw = await fsPromises.readFile(filePath, "utf8");
-  return JSON.parse(raw);
+    const raw = await fsPromises.readFile(filePath, 'utf8');
+    return JSON.parse(raw);
 }
 
 async function writeJson(filePath, data) {
-  const text = `${JSON.stringify(data, null, 2)}\n`;
-  await fsPromises.writeFile(filePath, text, "utf8");
+    const text = `${JSON.stringify(data, null, 2)}\n`;
+    await fsPromises.writeFile(filePath, text, 'utf8');
 }
 
 /** Read package.json version; throw if missing */
 async function getPkgVersion(pkgPath) {
-  const pkg = await readJson(pkgPath);
-  const v = pkg?.version;
-  if (!v) {
-    throw new Error(`No "version" field found in ${pkgPath}`);
-  }
-  return v;
+    const pkg = await readJson(pkgPath);
+    const v = pkg?.version;
+    if (!v) {
+        throw new Error(`No "version" field found in ${pkgPath}`);
+    }
+    return v;
 }
 
 /** Update package.json version in-place */
 async function setPkgVersion(pkgPath, nextVersion) {
-  const pkg = await readJson(pkgPath);
-  pkg.version = nextVersion;
-  await writeJson(pkgPath, pkg);
+    const pkg = await readJson(pkgPath);
+    pkg.version = nextVersion;
+    await writeJson(pkgPath, pkg);
 }
 
 function parseSemverIgnore(argvValue) {
-  if (!argvValue) return [];
-  return argvValue
-    .split(",")
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((pattern) => {
-      try {
-        return new RegExp(pattern, "i"); // case-insensitive on full message
-      } catch (e) {
-        err(chalk.red(`Invalid --semver-ignore pattern "${pattern}": ${e.message || e}`));
-        return null;
-      }
-    })
-    .filter(Boolean);
+    if (!argvValue) return [];
+    return argvValue
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((pattern) => {
+            try {
+                return new RegExp(pattern, 'i'); // case-insensitive on full message
+            } catch (e) {
+                err(chalk.red(`Invalid --ignore-semver pattern "${pattern}": ${e.message || e}`));
+                return null;
+            }
+        })
+        .filter(Boolean);
 }
 
 function matchesAnyPattern(text, patterns) {
-  if (!patterns || patterns.length === 0) return false;
+    if (!patterns || patterns.length === 0) return false;
 
-  const matched = patterns.find((rx) => rx.test(text));
-  if (matched) {
-    log(
-      chalk.cyan(
-        `↷ Semver ignored (pattern: /${matched.source}/i):  ${chalk.dim(`(${text.split("\n")[0]})`)}`,
-      ),
-    );
-    return true;
-  }
+    const matched = patterns.find((rx) => rx.test(text));
+    if (matched) {
+        log(chalk.cyan(`↷ Semver ignored (pattern: /${matched.source}/i):  ${chalk.dim(`(${text.split('\n')[0]})`)}`));
+        return true;
+    }
 
-  return false;
+    return false;
+}
+
+function parseIgnoreCommits(argvValue) {
+    if (!argvValue) return [];
+    return argvValue
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((pattern) => {
+            try {
+                return new RegExp(pattern, 'i'); // case-insensitive matching
+            } catch (e) {
+                err(chalk.red(`Invalid --ignore-commits pattern "${pattern}": ${e.message || e}`));
+                return null;
+            }
+        })
+        .filter(Boolean);
+}
+
+function shouldIgnoreCommit(subject, patterns) {
+    if (!patterns || patterns.length === 0) return false;
+
+    const matched = patterns.find((rx) => rx.test(subject));
+    if (matched) {
+        log(chalk.gray(`↷ Ignoring commit (pattern: /${matched.source}/i): ${chalk.dim(subject.slice(0, 80))}`));
+        return true;
+    }
+
+    return false;
 }
