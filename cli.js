@@ -124,6 +124,24 @@ const argv = yargs(hideBin(process.argv))
         group: 'Release options:',
     })
 
+    // ── Profile options ──
+    .option('profile', {
+        type: 'string',
+        describe: 'Load a named profile from .cherrypickrc.json.',
+        group: 'Profile options:',
+    })
+    .option('save-profile', {
+        type: 'string',
+        describe: 'Save current CLI flags as a named profile.',
+        group: 'Profile options:',
+    })
+    .option('list-profiles', {
+        type: 'boolean',
+        default: false,
+        describe: 'List available profiles and exit.',
+        group: 'Profile options:',
+    })
+
     // ── UI options ──
     .option('dry-run', {
         type: 'boolean',
@@ -639,8 +657,135 @@ async function computeSemanticBumpForCommits(hashes, gitRawFn, semverignore) {
     return collapseBumps(levels);
 }
 
+// ── Profile helpers ──
+
+const RC_FILENAME = '.cherrypickrc.json';
+
+/** Allowlist of flags that can be saved in a profile */
+const SAVEABLE_FLAGS = new Set([
+    'dev', 'main', 'since', 'no-fetch', 'all-yes', 'ignore-commits',
+    'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver',
+    'create-release', 'push-release', 'draft-pr', 'dry-run',
+]);
+
+async function getRepoRoot() {
+    return (await gitRaw(['rev-parse', '--show-toplevel'])).trim();
+}
+
+async function getRcPath() {
+    const root = await getRepoRoot();
+    return join(root, RC_FILENAME);
+}
+
+async function loadRcConfig() {
+    const rcPath = await getRcPath();
+    return (await readJson(rcPath)) || {};
+}
+
+async function saveRcConfig(config) {
+    const rcPath = await getRcPath();
+    await writeJson(rcPath, config);
+}
+
+async function loadProfile(name) {
+    const config = await loadRcConfig();
+    const profiles = config.profiles || {};
+    if (!profiles[name]) {
+        throw new Error(`Profile "${name}" not found in ${RC_FILENAME}. Available: ${Object.keys(profiles).join(', ') || '(none)'}`);
+    }
+    return profiles[name];
+}
+
+async function saveProfile(name, flags) {
+    const config = await loadRcConfig();
+    config.profiles = config.profiles || {};
+
+    if (config.profiles[name]) {
+        const { overwrite } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'overwrite',
+                message: `Profile "${name}" already exists. Overwrite?`,
+                default: false,
+            },
+        ]);
+        if (!overwrite) {
+            log(chalk.yellow('Aborted — profile not saved.'));
+            return false;
+        }
+    }
+
+    const filtered = {};
+    for (const [key, value] of Object.entries(flags)) {
+        if (SAVEABLE_FLAGS.has(key)) {
+            filtered[key] = value;
+        }
+    }
+
+    config.profiles[name] = filtered;
+    await saveRcConfig(config);
+
+    log(chalk.green(`\n✓ Profile "${name}" saved to ${RC_FILENAME}:`));
+    log(JSON.stringify(filtered, null, 2));
+    return true;
+}
+
+async function listProfiles() {
+    const config = await loadRcConfig();
+    const profiles = config.profiles || {};
+    const names = Object.keys(profiles);
+
+    if (names.length === 0) {
+        log(chalk.yellow(`No profiles found in ${RC_FILENAME}.`));
+        return;
+    }
+
+    log(chalk.cyan(`\nProfiles in ${RC_FILENAME}:\n`));
+    for (const name of names) {
+        const flags = profiles[name];
+        const summary = Object.entries(flags)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ');
+        log(`  ${chalk.bold(name)}  ${chalk.dim(summary)}`);
+    }
+    log('');
+}
+
+function applyProfile(profile, currentArgv) {
+    for (const [key, value] of Object.entries(profile)) {
+        // CLI flags (explicit) override profile values.
+        // yargs sets properties from defaults — we detect explicit CLI flags
+        // by checking if the key is in the raw process.argv
+        const cliFlag = `--${key}`;
+        const wasExplicit = process.argv.some((a) => a === cliFlag || a.startsWith(`${cliFlag}=`));
+        if (!wasExplicit) {
+            currentArgv[key] = value;
+            // Also set camelCase version for yargs compatibility
+            const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            if (camel !== key) currentArgv[camel] = value;
+        }
+    }
+}
+
 async function main() {
     try {
+        // ── Profile handling (must run before any other logic) ──
+        if (argv['list-profiles']) {
+            await listProfiles();
+            return;
+        }
+
+        if (argv['save-profile']) {
+            const name = argv['save-profile'];
+            await saveProfile(name, argv);
+            return;
+        }
+
+        if (argv['profile']) {
+            const profile = await loadProfile(argv['profile']);
+            applyProfile(profile, argv);
+        }
+
         // Check if gh CLI is installed when push-release is enabled
         if (argv['push-release']) {
             const ghInstalled = await checkGhCli();
