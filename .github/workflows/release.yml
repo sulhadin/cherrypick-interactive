@@ -20,11 +20,14 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install dependencies
-        run: npm ci || npm install
+        run: yarn install --immutable
 
       - name: Run tests
-        run: npm test
+        run: yarn test
 
       - name: Get current version
         id: current
