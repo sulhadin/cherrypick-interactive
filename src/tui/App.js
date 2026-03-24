@@ -14,6 +14,7 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
     const [filterText, setFilterText] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchInput, setSearchInput] = useState('');
+    const [showPreview, setShowPreview] = useState(true);
     const [showDiff, setShowDiff] = useState(false);
     const [diffText, setDiffText] = useState('');
     const [confirmQuit, setConfirmQuit] = useState(false);
@@ -28,7 +29,7 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
     useEffect(() => {
         if (!currentCommit) return;
         let cancelled = false;
-        gitRawFn(['show', '--stat', '--format=', currentCommit.hash]).then((text) => {
+        gitRawFn(['show', '--stat', '--format=', '--color=always', currentCommit.hash]).then((text) => {
             if (!cancelled) setPreviewText(text.trim());
         }).catch(() => {
             if (!cancelled) setPreviewText('(unable to load preview)');
@@ -114,12 +115,17 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
             if (currentCommit) {
                 setShowDiff(true);
                 setDiffText('Loading...');
-                gitRawFn(['show', '--stat', '-p', currentCommit.hash]).then((text) => {
+                gitRawFn(['show', '--stat', '-p', '--color=always', currentCommit.hash]).then((text) => {
                     setDiffText(text.trim());
                 }).catch(() => {
                     setDiffText('(unable to load diff)');
                 });
             }
+        }
+
+        // Toggle preview
+        else if (input === 'p') {
+            setShowPreview((v) => !v);
         }
 
         // Confirm
@@ -185,10 +191,12 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
                 isSearching=${isSearching}
                 selectedCount=${selected.size}
             />
-            <${Preview}
-                previewText=${previewText}
-                hash=${currentCommit?.hash}
-            />
+            ${showPreview ? html`
+                <${Preview}
+                    previewText=${previewText}
+                    hash=${currentCommit?.hash}
+                />
+            ` : null}
         </${Box}>
     `;
 }

@@ -13,7 +13,7 @@ export function KeyBar({ isSearching, selectedCount }) {
     return html`
         <${Box} paddingX=${1}>
             <${Text} color="dim">
-                [space] toggle  [a] all  [n] none  [/] search  [d] diff  [enter] confirm (${selectedCount})  [q] quit
+                [space] toggle  [a] all  [n] none  [/] search  [d] diff  [p] preview  [enter] confirm (${selectedCount})  [q] quit
             </${Text}>
         </${Box}>
     `;
