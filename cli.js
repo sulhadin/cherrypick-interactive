@@ -21,6 +21,7 @@ const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
 const notifier = updateNotifier({
     pkg,
+    updateCheckInterval: 1000 * 60 * 60, // 1 hour
 });
 
 // Only print if a *real* newer version exists
