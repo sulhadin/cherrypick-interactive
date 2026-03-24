@@ -218,7 +218,9 @@ const argv = yargs(hideBin(process.argv))
     .alias('v', 'version').argv;
 
 // When --format json, all log output goes to stderr so stdout is clean JSON
-const isJsonFormat = process.argv.includes('--format') && process.argv.includes('json');
+const isJsonFormat = process.argv.some((a, i) =>
+    (a === '--format' && process.argv[i + 1] === 'json') || a === '--format=json',
+);
 if (isJsonFormat) {
     // Disable chalk colors for clean stderr in JSON mode
     process.env.NO_COLOR = '1';
@@ -1049,11 +1051,7 @@ async function handleUndo() {
         { type: 'confirm', name: 'reopen', message: 'Re-open commit selection?', default: true },
     ]);
 
-    if (reopen) {
-        // Re-run main without --undo
-        argv.undo = false;
-        await main();
-    }
+    return reopen;
 }
 
 // ── Dependency detection helpers ──
@@ -1217,8 +1215,10 @@ async function main() {
     try {
         // ── Undo handling (must run before anything else) ──
         if (argv.undo) {
-            await handleUndo();
-            return;
+            const shouldReopen = await handleUndo();
+            if (!shouldReopen) return;
+            argv.undo = false;
+            // Fall through to normal flow (re-open selection)
         }
 
         // ── CI mode: implicitly enable --all-yes ──
