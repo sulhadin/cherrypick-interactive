@@ -1121,7 +1121,60 @@ async function main() {
             }
         }
 
-        if (argv.dry_run || argv['dry-run']) {
+        // ── Version computation (moved before preview) ──
+        if (argv['version-file'] && !argv['current-version']) {
+            const currentVersionFromPkg = await getPkgVersion(argv['version-file']);
+            argv['current-version'] = currentVersionFromPkg;
+        }
+
+        let computedNextVersion = argv['current-version'];
+        let detectedBump = null;
+        if (argv['semantic-versioning']) {
+            if (!argv['current-version']) {
+                throw new Error(' --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)');
+            }
+
+            detectedBump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore);
+            computedNextVersion = detectedBump ? incrementVersion(argv['current-version'], detectedBump) : argv['current-version'];
+
+            log('');
+            log(chalk.magenta('Semantic Versioning'));
+            log(
+                `  Current: ${chalk.bold(argv['current-version'])}  ` +
+                `Detected bump: ${chalk.bold(detectedBump || 'none')}  ` +
+                `Next: ${chalk.bold(computedNextVersion)}`,
+            );
+        }
+
+        // ── Changelog preview ──
+        let trackerConfig = null;
+        try {
+            trackerConfig = parseTrackerConfig(argv);
+        } catch (e) {
+            err(chalk.red(e.message));
+        }
+
+        const previewChangelog = await buildChangelogBody({
+            version: computedNextVersion,
+            hashes: bottomToTop,
+            gitRawFn: gitRaw,
+            semverIgnore,
+            trackerConfig,
+        });
+
+        const isDryRun = argv.dry_run || argv['dry-run'];
+
+        // Show preview
+        log(chalk.cyan('\n── Changelog Preview ──────────────────'));
+        if (computedNextVersion && argv['current-version'] && computedNextVersion !== argv['current-version']) {
+            log(chalk.gray(`Previous: ${argv['current-version']} → Next: ${computedNextVersion} (${detectedBump} bump)`));
+        }
+        log('');
+        log(previewChangelog);
+        log(chalk.gray(`${bottomToTop.length} commits selected`));
+        log(chalk.cyan('──────────────────────────────────────'));
+
+        if (isDryRun) {
             log(chalk.cyan('\n--dry-run: would cherry-pick (oldest → newest):'));
             for (const h of bottomToTop) {
                 const subj = await gitRaw(['show', '--format=%s', '-s', h]);
@@ -1130,29 +1183,24 @@ async function main() {
             return;
         }
 
-        if (argv['version-file'] && !argv['current-version']) {
-            const currentVersionFromPkg = await getPkgVersion(argv['version-file']);
-            argv['current-version'] = currentVersionFromPkg;
+        // Confirmation (skip in CI)
+        if (!argv.ci && !argv['all-yes']) {
+            const { proceed } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'proceed',
+                    message: 'Proceed with cherry-pick?',
+                    default: false,
+                },
+            ]);
+            if (!proceed) {
+                log(chalk.yellow('Aborted by user.'));
+                return;
+            }
         }
 
-        let computedNextVersion = argv['current-version'];
-        if (argv['semantic-versioning']) {
-            if (!argv['current-version']) {
-                throw new Error(' --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)');
-            }
-
-            // Bump is based on the commits you are about to apply (selected).
-            const bump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore);
-
-            computedNextVersion = bump ? incrementVersion(argv['current-version'], bump) : argv['current-version'];
-
-            log('');
-            log(chalk.magenta('Semantic Versioning'));
-            log(
-                `  Current: ${chalk.bold(argv['current-version'])}  ` +
-                `Detected bump: ${chalk.bold(bump || 'none')}  ` +
-                `Next: ${chalk.bold(computedNextVersion)}`,
-            );
+        if (argv.ci) {
+            err(chalk.gray('[CI] Changelog preview logged. Proceeding automatically.'));
         }
 
         if (argv['create-release']) {
@@ -1167,22 +1215,7 @@ async function main() {
             const startPoint = argv.main; // e.g., 'origin/main' or a local ref
             await ensureReleaseBranchFresh(releaseBranch, startPoint);
 
-            let trackerConfig = null;
-            try {
-                trackerConfig = parseTrackerConfig(argv);
-            } catch (e) {
-                err(chalk.red(e.message));
-            }
-
-            const changelogBody = await buildChangelogBody({
-                version: computedNextVersion,
-                hashes: bottomToTop,
-                gitRawFn: gitRaw,
-                semverIgnore, // raw flag value
-                trackerConfig,
-            });
-
-            await fsPromises.writeFile('RELEASE_CHANGELOG.md', changelogBody, 'utf8');
+            await fsPromises.writeFile('RELEASE_CHANGELOG.md', previewChangelog, 'utf8');
             await gitRaw(['reset', 'RELEASE_CHANGELOG.md']);
             log(chalk.gray(`✅ Generated changelog for ${releaseBranch} → RELEASE_CHANGELOG.md`));
 
