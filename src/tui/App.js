@@ -14,7 +14,7 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
     const [filterText, setFilterText] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchInput, setSearchInput] = useState('');
-    const [showPreview, setShowPreview] = useState(true);
+    const [showPreview, setShowPreview] = useState(false);
     const [showDiff, setShowDiff] = useState(false);
     const [diffText, setDiffText] = useState('');
     const [confirmQuit, setConfirmQuit] = useState(false);
