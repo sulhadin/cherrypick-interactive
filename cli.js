@@ -199,6 +199,12 @@ const argv = yargs(hideBin(process.argv))
     })
 
     // ── UI options ──
+    .option('no-tui', {
+        type: 'boolean',
+        default: false,
+        describe: 'Disable TUI dashboard, use simple inquirer checkbox instead.',
+        group: 'UI options:',
+    })
     .option('dry-run', {
         type: 'boolean',
         default: false,
@@ -776,6 +782,7 @@ const SAVEABLE_FLAGS = new Set([
     'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver',
     'create-release', 'push-release', 'draft-pr', 'dry-run',
     'tracker', 'ticket-pattern', 'tracker-url',
+    'no-tui',
 ]);
 
 async function getRepoRoot() {
@@ -875,6 +882,41 @@ function applyProfile(profile, currentArgv) {
             if (camel !== key) currentArgv[camel] = value;
         }
     }
+}
+
+// ── TUI detection ──
+
+const MIN_TUI_ROWS = 15;
+const MIN_TUI_COLS = 60;
+
+function shouldUseTui() {
+    // Explicit opt-out
+    if (argv['no-tui'] || argv.noTui) return false;
+    // CI mode or all-yes: no interactive UI needed
+    if (argv.ci || argv['all-yes']) return false;
+    // Non-interactive terminal
+    if (!process.stdout.isTTY) return false;
+    // CI environment variable
+    if (process.env.CI === 'true' || process.env.CI === '1') return false;
+    // Windows: fallback to inquirer
+    if (process.platform === 'win32') return false;
+    // Terminal too small
+    const rows = process.stdout.rows || 24;
+    const cols = process.stdout.columns || 80;
+    if (rows < MIN_TUI_ROWS || cols < MIN_TUI_COLS) return false;
+    return true;
+}
+
+async function selectCommitsWithTuiOrFallback(commits) {
+    if (shouldUseTui()) {
+        const { renderCommitSelector } = await import('./src/tui/index.js');
+        return renderCommitSelector(commits, gitRaw, {
+            devBranch: argv.dev,
+            mainBranch: argv.main,
+            since: argv.since,
+        });
+    }
+    return selectCommitsInteractive(commits);
 }
 
 // ── Session helpers (undo/rollback) ──
@@ -1274,7 +1316,7 @@ async function main() {
         if (argv['all-yes']) {
             selected = filteredMissing.map((m) => m.hash);
         } else {
-            selected = await selectCommitsInteractive(filteredMissing);
+            selected = await selectCommitsWithTuiOrFallback(filteredMissing);
             if (!selected.length) {
                 log(chalk.yellow('No commits selected. Exiting.'));
                 return;
@@ -1339,7 +1381,7 @@ async function main() {
                                 log(chalk.green(`✓ ${missingHashes.length} commit(s) added. Total: ${selected.length}`));
                             }
                         } else if (choice === 'back') {
-                            selected = await selectCommitsInteractive(filteredMissing);
+                            selected = await selectCommitsWithTuiOrFallback(filteredMissing);
                             if (!selected.length) {
                                 log(chalk.yellow('No commits selected. Exiting.'));
                                 return;
