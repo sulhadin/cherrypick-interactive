@@ -20,6 +20,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Run tests
+        run: npm test
+
       - name: Get current version
         id: current
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
