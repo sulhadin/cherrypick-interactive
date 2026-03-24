@@ -283,16 +283,16 @@ async function getSubjects(branch) {
 }
 
 async function getDevCommits(branch, since) {
-    const out = await gitRaw(['log', '--no-merges', `--since=${since}`, '--pretty=%H %s', branch]);
+    const SEP = '|||';
+    const out = await gitRaw(['log', '--no-merges', `--since=${since}`, `--pretty=%H${SEP}%ar${SEP}%s`, branch]);
 
     if (!out) {
         return [];
     }
     return out.split('\n').map((line) => {
-        const firstSpace = line.indexOf(' ');
-        const hash = line.slice(0, firstSpace);
-        const subject = line.slice(firstSpace + 1);
-        return { hash, subject };
+        const [hash, date, ...rest] = line.split(SEP);
+        const subject = rest.join(SEP);
+        return { hash, subject, date: date || '' };
     });
 }
 

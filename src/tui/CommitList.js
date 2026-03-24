@@ -15,6 +15,7 @@ export function CommitList({ commits, selected, cursorIndex }) {
                         key=${c.hash}
                         hash=${c.hash}
                         subject=${c.subject}
+                        date=${c.date || ''}
                         isSelected=${selected.has(c.hash)}
                         isCursor=${start + i === cursorIndex}
                     />
