@@ -464,6 +464,7 @@ __metadata:
     "@biomejs/biome": "npm:^1.9.4"
     chalk: "npm:^5.6.2"
     inquirer: "npm:^13.0.2"
+    safe-regex2: "npm:^5.1.0"
     semver: "npm:^7.7.3"
     simple-git: "npm:^3.30.0"
     update-notifier: "npm:^7.3.1"
@@ -793,6 +794,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ret@npm:~0.5.0":
+  version: 0.5.0
+  resolution: "ret@npm:0.5.0"
+  checksum: 10c0/220868b194f87bf1998e32e409086eec6b39e860c052bf267f8ad4d0131706a9773d45fd3f91acfb1a7c928fce002b694ab86fdba90bc8d4b8df68fa8645c5cc
+  languageName: node
+  linkType: hard
+
 "run-async@npm:^4.0.6":
   version: 4.0.6
   resolution: "run-async@npm:4.0.6"
@@ -806,6 +814,17 @@ __metadata:
   dependencies:
     tslib: "npm:^2.1.0"
   checksum: 10c0/1fcd33d2066ada98ba8f21fcbbcaee9f0b271de1d38dc7f4e256bfbc6ffcdde68c8bfb69093de7eeb46f24b1fb820620bf0223706cff26b4ab99a7ff7b2e2c45
+  languageName: node
+  linkType: hard
+
+"safe-regex2@npm:^5.1.0":
+  version: 5.1.0
+  resolution: "safe-regex2@npm:5.1.0"
+  dependencies:
+    ret: "npm:~0.5.0"
+  bin:
+    safe-regex2: bin/safe-regex2.js
+  checksum: 10c0/9ee1e1c0336dbbf7a9cc182766d193371cff8adc4e390d9d709a5fb72fe0dc42500efc77eb5a266d8feb442ae3872a189021e73e7286420b4ad65db9896977b0
   languageName: node
   linkType: hard
 

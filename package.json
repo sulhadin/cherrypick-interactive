@@ -23,6 +23,7 @@
   "dependencies": {
     "chalk": "^5.6.2",
     "inquirer": "^13.0.2",
+    "safe-regex2": "^5.1.0",
     "semver": "^7.7.3",
     "simple-git": "^3.30.0",
     "update-notifier": "^7.3.1",

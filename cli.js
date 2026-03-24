@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import semver from 'semver';
 import simpleGit from 'simple-git';
+import isSafeRegex from 'safe-regex2';
 import updateNotifier from 'update-notifier';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
@@ -122,6 +123,24 @@ const argv = yargs(hideBin(process.argv))
         default: false,
         describe: 'Create the release PR as a draft.',
         group: 'Release options:',
+    })
+
+    // ── Tracker options ──
+    .option('tracker', {
+        type: 'string',
+        describe: 'Built-in preset: clickup, jira, linear. Sets ticket-pattern automatically.',
+        choices: ['clickup', 'jira', 'linear'],
+        group: 'Tracker options:',
+    })
+    .option('ticket-pattern', {
+        type: 'string',
+        describe: 'Custom regex to capture ticket ID from commit message (must have one capture group).',
+        group: 'Tracker options:',
+    })
+    .option('tracker-url', {
+        type: 'string',
+        describe: 'URL template with {{id}} placeholder (required when using tracker).',
+        group: 'Tracker options:',
     })
 
     // ── Profile options ──
@@ -666,6 +685,7 @@ const SAVEABLE_FLAGS = new Set([
     'dev', 'main', 'since', 'no-fetch', 'all-yes', 'ignore-commits',
     'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver',
     'create-release', 'push-release', 'draft-pr', 'dry-run',
+    'tracker', 'ticket-pattern', 'tracker-url',
 ]);
 
 async function getRepoRoot() {
@@ -767,6 +787,79 @@ function applyProfile(profile, currentArgv) {
     }
 }
 
+// ── Tracker helpers ──
+
+const TRACKER_PRESETS = {
+    clickup: '#([a-z0-9]+)',
+    jira: '([A-Z]+-\\d+)',
+    linear: '\\[([A-Z]+-\\d+)\\]',
+};
+
+function parseTrackerConfig(currentArgv) {
+    let pattern = currentArgv['ticket-pattern'];
+    const url = currentArgv['tracker-url'];
+    const preset = currentArgv.tracker;
+
+    // Load from .cherrypickrc.json tracker section if not set via CLI
+    // (will be populated after loadRcConfig is called in main)
+
+    if (!pattern && !url && !preset) return null;
+
+    if (preset && !pattern) {
+        pattern = TRACKER_PRESETS[preset];
+        if (!pattern) {
+            throw new Error(`Unknown tracker preset "${preset}". Available: ${Object.keys(TRACKER_PRESETS).join(', ')}`);
+        }
+    }
+
+    if (pattern && !url) {
+        throw new Error('--ticket-pattern requires --tracker-url to be set.');
+    }
+    if (url && !pattern && !preset) {
+        throw new Error('--tracker-url requires --ticket-pattern or --tracker to be set.');
+    }
+
+    let compiled;
+    try {
+        compiled = new RegExp(pattern);
+    } catch (e) {
+        throw new Error(`Invalid --ticket-pattern regex "${pattern}": ${e.message}`);
+    }
+
+    if (!isSafeRegex(compiled)) {
+        throw new Error(`Pattern rejected — potential catastrophic backtracking: "${pattern}"`);
+    }
+
+    // Validate capture group
+    const groups = new RegExp(`${pattern}|`).exec('').length - 1;
+    if (groups < 1) {
+        throw new Error('Pattern must have one capture group for the ticket ID.');
+    }
+
+    return { pattern: compiled, url };
+}
+
+function linkifyTicket(subject, trackerConfig) {
+    if (!trackerConfig) return subject;
+    const { pattern, url } = trackerConfig;
+    const match = pattern.exec(subject);
+    if (!match) return subject;
+
+    const fullMatch = match[0]; // entire matched text (e.g., "#86c8w62wx")
+    const capturedId = match[1]; // capture group (e.g., "86c8w62wx")
+    const link = url.replace('{{id}}', capturedId);
+    return subject.replace(fullMatch, `[${fullMatch}](${link})`);
+}
+
+async function loadTrackerFromRc() {
+    try {
+        const config = await loadRcConfig();
+        return config.tracker || null;
+    } catch {
+        return null;
+    }
+}
+
 async function main() {
     try {
         // ── Profile handling (must run before any other logic) ──
@@ -784,6 +877,15 @@ async function main() {
         if (argv['profile']) {
             const profile = await loadProfile(argv['profile']);
             applyProfile(profile, argv);
+        }
+
+        // ── Tracker config (merge CLI flags with .cherrypickrc.json) ──
+        if (!argv['ticket-pattern'] && !argv['tracker']) {
+            const rcTracker = await loadTrackerFromRc();
+            if (rcTracker) {
+                if (rcTracker['ticket-pattern'] && !argv['ticket-pattern']) argv['ticket-pattern'] = rcTracker['ticket-pattern'];
+                if (rcTracker['tracker-url'] && !argv['tracker-url']) argv['tracker-url'] = rcTracker['tracker-url'];
+            }
         }
 
         // Check if gh CLI is installed when push-release is enabled
@@ -903,11 +1005,19 @@ async function main() {
             const startPoint = argv.main; // e.g., 'origin/main' or a local ref
             await ensureReleaseBranchFresh(releaseBranch, startPoint);
 
+            let trackerConfig = null;
+            try {
+                trackerConfig = parseTrackerConfig(argv);
+            } catch (e) {
+                err(chalk.red(e.message));
+            }
+
             const changelogBody = await buildChangelogBody({
                 version: computedNextVersion,
                 hashes: bottomToTop,
                 gitRawFn: gitRaw,
                 semverIgnore, // raw flag value
+                trackerConfig,
             });
 
             await fsPromises.writeFile('RELEASE_CHANGELOG.md', changelogBody, 'utf8');
@@ -1046,7 +1156,7 @@ async function ensureReleaseBranchFresh(branchName, startPoint) {
     }
 }
 
-async function buildChangelogBody({ version, hashes, gitRawFn, semverIgnore }) {
+async function buildChangelogBody({ version, hashes, gitRawFn, semverIgnore, trackerConfig }) {
     const today = new Date().toISOString().slice(0, 10);
     const header = version ? `## Release ${version} — ${today}` : `## Release — ${today}`;
     const semverIgnorePatterns = parseSemverIgnore(semverIgnore);
@@ -1056,10 +1166,14 @@ async function buildChangelogBody({ version, hashes, gitRawFn, semverIgnore }) {
     const fixes = [];
     const others = [];
 
+    let linkedCount = 0;
+
     for (const h of hashes) {
         const msg = await gitRawFn(['show', '--format=%B', '-s', h]);
 
-        const subject = msg.split(/\r?\n/)[0].trim(); // first line of commit message
+        const rawSubject = msg.split(/\r?\n/)[0].trim(); // first line of commit message
+        const subject = linkifyTicket(rawSubject, trackerConfig);
+        if (trackerConfig && subject !== rawSubject) linkedCount++;
         const shaDisplay = shortSha(h);
 
         // normal classification first
@@ -1085,6 +1199,10 @@ async function buildChangelogBody({ version, hashes, gitRawFn, semverIgnore }) {
                 others.push(`${shaDisplay} ${subject}`);
                 break;
         }
+    }
+
+    if (trackerConfig) {
+        log(chalk.gray(`Tracker: ${linkedCount} of ${hashes.length} commits had ticket IDs linked.`));
     }
 
     const sections = [];
