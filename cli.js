@@ -34,7 +34,7 @@ if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(up
 
     // Skip interactive prompt in CI or non-TTY
     if (process.stdout.isTTY && !process.env.CI) {
-        const { shouldUpdate } = await inquirer.prompt([
+        const { shouldUpdate } = await prompt([
             {
                 type: 'confirm',
                 name: 'shouldUpdate',
@@ -263,6 +263,22 @@ const ciResult = {
     pr: { url: null },
 };
 
+/**
+ * Wrap inquirer.prompt to handle Ctrl+C gracefully.
+ * Instead of throwing "User force closed the prompt", exit cleanly.
+ */
+async function prompt(questions) {
+    try {
+        return await inquirer.prompt(questions);
+    } catch (e) {
+        if (e.name === 'ExitPromptError' || e.message?.includes('force closed')) {
+            log(chalk.yellow('\nAborted by user.'));
+            process.exit(0);
+        }
+        throw e;
+    }
+}
+
 class ExitError extends Error {
     constructor(message, exitCode = 1) {
         super(message);
@@ -318,7 +334,7 @@ async function selectCommitsInteractive(missing) {
     ];
     const termHeight = process.stdout.rows || 24; // fallback for non-TTY environments
 
-    const { selected } = await inquirer.prompt([
+    const { selected } = await prompt([
         {
             type: 'checkbox',
             name: 'selected',
@@ -375,7 +391,7 @@ async function handleCherryPickConflict(hash) {
         err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${shortSha(hash)}).`));
         await showConflictsList(); // prints conflicted files (if any)
 
-        const { action } = await inquirer.prompt([
+        const { action } = await prompt([
             {
                 type: 'select',
                 name: 'action',
@@ -461,7 +477,7 @@ async function showConflictsList() {
 }
 
 async function resolveSingleFileWizard(file) {
-    const { action } = await inquirer.prompt([
+    const { action } = await prompt([
         {
             type: 'select',
             name: 'action',
@@ -491,7 +507,7 @@ async function resolveSingleFileWizard(file) {
             log(chalk.cyan(`Opening ${file} in ${editor}...`));
             await runBin(editor, [file]);
             // user edits and saves, so now they can stage
-            const { stageNow } = await inquirer.prompt([
+            const { stageNow } = await prompt([
                 {
                     type: 'confirm',
                     name: 'stageNow',
@@ -526,7 +542,7 @@ async function conflictsResolutionWizard(hash) {
             // If there are no conflicted files, either continue or detect empty pick
             if (await isEmptyCherryPick()) {
                 err(chalk.yellow('The previous cherry-pick is now empty.'));
-                const { emptyAction } = await inquirer.prompt([
+                const { emptyAction } = await prompt([
                     {
                         type: 'select',
                         name: 'emptyAction',
@@ -571,7 +587,7 @@ async function conflictsResolutionWizard(hash) {
             }
         }
 
-        const { choice } = await inquirer.prompt([
+        const { choice } = await prompt([
             {
                 type: 'select',
                 name: 'choice',
@@ -625,7 +641,7 @@ async function conflictsResolutionWizard(hash) {
                 // If nothing is staged, treat as empty pick and prompt
                 if (!(await hasStagedChanges())) {
                     err(chalk.yellow('No staged changes found for this cherry-pick.'));
-                    const { emptyAction } = await inquirer.prompt([
+                    const { emptyAction } = await prompt([
                         {
                             type: 'select',
                             name: 'emptyAction',
@@ -852,7 +868,7 @@ async function saveProfile(name, flags) {
     config.profiles = config.profiles || {};
 
     if (config.profiles[name]) {
-        const { overwrite } = await inquirer.prompt([
+        const { overwrite } = await prompt([
             {
                 type: 'confirm',
                 name: 'overwrite',
@@ -1012,7 +1028,7 @@ async function handleUndo() {
     // Warn if on a different branch
     if (currentBranch !== session.branch) {
         log(chalk.yellow(`⚠ You are on "${currentBranch}" but the session was created on "${session.branch}".`));
-        const { switchBranch } = await inquirer.prompt([
+        const { switchBranch } = await prompt([
             { type: 'confirm', name: 'switchBranch', message: `Switch to ${session.branch}?`, default: true },
         ]);
         if (switchBranch) {
@@ -1049,7 +1065,7 @@ async function handleUndo() {
     log(`  Commits to discard: ${commitsSinceCheckpoint}`);
     log(chalk.gray('  This is an all-or-nothing rollback — individual commits cannot be selectively removed.\n'));
 
-    const { proceed } = await inquirer.prompt([
+    const { proceed } = await prompt([
         { type: 'confirm', name: 'proceed', message: 'Continue?', default: false },
     ]);
 
@@ -1077,7 +1093,7 @@ async function handleUndo() {
     log(chalk.green(`\nBranch ${session.branch} has been reset to ${shortSha(session.checkpoint)}. You can now re-select commits.`));
 
     // Offer to re-open selection
-    const { reopen } = await inquirer.prompt([
+    const { reopen } = await prompt([
         { type: 'confirm', name: 'reopen', message: 'Re-open commit selection?', default: true },
     ]);
 
@@ -1292,7 +1308,7 @@ async function main() {
                 err(chalk.cyan('   Install it from: https://cli.github.com/'));
                 err(chalk.cyan('   Or run without --push-release to skip PR creation.\n'));
 
-                const { proceed } = await inquirer.prompt([
+                const { proceed } = await prompt([
                     {
                         type: 'confirm',
                         name: 'proceed',
@@ -1382,7 +1398,7 @@ async function main() {
                         // warn: already logged above, continue
                     } else {
                         const missingHashes = [...new Set(deps.map((d) => d.dependency))];
-                        const { choice } = await inquirer.prompt([
+                        const { choice } = await prompt([
                             {
                                 type: 'list',
                                 name: 'choice',
@@ -1401,7 +1417,7 @@ async function main() {
                                 const subj = await gitRaw(['show', '--format=%s', '-s', h]);
                                 log(`  + ${chalk.dim(`(${shortSha(h)})`)} ${subj}`);
                             }
-                            const { confirm } = await inquirer.prompt([
+                            const { confirm } = await prompt([
                                 { type: 'confirm', name: 'confirm', message: 'Add these commits?', default: true },
                             ]);
                             if (confirm) {
@@ -1487,7 +1503,7 @@ async function main() {
 
         // Confirmation (skip in CI)
         if (!argv.ci && !argv['all-yes']) {
-            const { proceed } = await inquirer.prompt([
+            const { proceed } = await prompt([
                 {
                     type: 'confirm',
                     name: 'proceed',
@@ -1652,7 +1668,7 @@ async function ensureReleaseBranchFresh(branchName, startPoint) {
         return;
     }
 
-    const { action } = await inquirer.prompt([
+    const { action } = await prompt([
         {
             type: 'select',
             name: 'action',
@@ -1800,7 +1816,7 @@ async function getPkgVersion(pkgPath) {
     let pkg = await readJson(pkgPath);
     if (!pkg) {
         log(chalk.yellow(`⚠ ${pkgPath} not found.`));
-        const { shouldCreate } = await inquirer.prompt([
+        const { shouldCreate } = await prompt([
             {
                 type: 'confirm',
                 name: 'shouldCreate',
