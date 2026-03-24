@@ -177,10 +177,9 @@ export function App({ commits, gitRawFn, devBranch, mainBranch, since, onDone })
                     : null
             }
             <${CommitList}
-                commits=${commits}
+                commits=${filtered}
                 selected=${selected}
                 cursorIndex=${cursorIndex}
-                filterText=${filterText}
             />
             <${KeyBar}
                 isSearching=${isSearching}

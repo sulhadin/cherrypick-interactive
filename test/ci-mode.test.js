@@ -60,32 +60,30 @@ describe('CI Mode - log redirection', () => {
 });
 
 describe('CI Mode - exit codes', () => {
-    it('exit code 1 for conflict with --conflict-strategy fail', () => {
-        const source = readFile(CLI, 'utf8');
-        source.then((code) => {
-            assert.ok(code.includes("process.exit(1)"), 'should have exit(1) for conflicts');
-        });
+    it('ExitError used for structured exit codes', async () => {
+        const code = await readFile(CLI, 'utf8');
+        assert.ok(code.includes('class ExitError'), 'should have ExitError class');
+        assert.ok(code.includes('e.exitCode'), 'catch block should read exitCode');
     });
 
-    it('exit code 2 for no commits found', () => {
-        const source = readFile(CLI, 'utf8');
-        source.then((code) => {
-            assert.ok(code.includes("process.exit(2)"), 'should have exit(2) for no commits');
-        });
+    it('exit code 1 for conflict with --conflict-strategy fail', async () => {
+        const code = await readFile(CLI, 'utf8');
+        assert.ok(code.includes("ExitError('Conflict detected") || code.includes('ExitError('), 'should throw ExitError for conflicts');
     });
 
-    it('exit code 3 for auth/push errors in CI', () => {
-        const source = readFile(CLI, 'utf8');
-        source.then((code) => {
-            assert.ok(code.includes("process.exit(3)"), 'should have exit(3) for auth errors');
-        });
+    it('exit code 2 for no commits found in CI', async () => {
+        const code = await readFile(CLI, 'utf8');
+        assert.ok(code.includes("ExitError('No commits found.', 2)"), 'should throw ExitError with code 2');
     });
 
-    it('exit code 4 for dependency-strategy fail', () => {
-        const source = readFile(CLI, 'utf8');
-        source.then((code) => {
-            assert.ok(code.includes("process.exit(4)"), 'should have exit(4) for dependency fail');
-        });
+    it('exit code 3 as default for CI errors', async () => {
+        const code = await readFile(CLI, 'utf8');
+        assert.ok(code.includes("argv.ci ? 3 : 1"), 'should default to exit code 3 for CI errors');
+    });
+
+    it('exit code 4 for dependency-strategy fail', async () => {
+        const code = await readFile(CLI, 'utf8');
+        assert.ok(code.includes("ExitError('Dependency check failed"), 'should throw ExitError for dependency fail');
     });
 });
 

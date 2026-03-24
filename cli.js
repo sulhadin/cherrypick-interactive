@@ -237,6 +237,13 @@ const ciResult = {
     pr: { url: null },
 };
 
+class ExitError extends Error {
+    constructor(message, exitCode = 1) {
+        super(message);
+        this.exitCode = exitCode;
+    }
+}
+
 async function gitRaw(args) {
     const out = await git.raw(args);
     return out.trim();
@@ -311,8 +318,7 @@ async function handleCherryPickConflict(hash) {
 
         if (strategy === 'fail') {
             await gitRaw(['cherry-pick', '--abort']);
-            err(chalk.red('Conflict detected with --conflict-strategy fail. Aborting.'));
-            process.exit(1);
+            throw new ExitError('Conflict detected with --conflict-strategy fail. Aborting.', 1);
         }
 
         if (strategy === 'skip') {
@@ -967,14 +973,12 @@ async function hasRemoteTrackingBranch() {
 async function handleUndo() {
     // --undo + --ci is not allowed
     if (argv.ci) {
-        err(chalk.red('--undo is interactive-only and cannot be used with --ci. In CI, re-run the pipeline instead.'));
-        process.exit(1);
+        throw new ExitError('--undo is interactive-only and cannot be used with --ci. In CI, re-run the pipeline instead.', 1);
     }
 
     const session = await loadSession();
     if (!session) {
-        err(chalk.red(`No active session to undo. (${SESSION_FILENAME} not found)`));
-        process.exit(1);
+        throw new ExitError(`No active session to undo. (${SESSION_FILENAME} not found)`, 1);
     }
 
     const currentBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']);
@@ -997,8 +1001,7 @@ async function handleUndo() {
     try {
         await gitRaw(['merge-base', '--is-ancestor', session.checkpoint, 'HEAD']);
     } catch {
-        err(chalk.red(`Checkpoint ${shortSha(session.checkpoint)} is not an ancestor of current HEAD. Session may be corrupt.`));
-        process.exit(1);
+        throw new ExitError(`Checkpoint ${shortSha(session.checkpoint)} is not an ancestor of current HEAD. Session may be corrupt.`, 1);
     }
 
     // Divergence check: count commits between checkpoint and HEAD
@@ -1007,9 +1010,10 @@ async function handleUndo() {
     const expectedCommits = session.commits?.length || 0;
 
     if (commitsSinceCheckpoint > expectedCommits) {
-        err(chalk.red(`⚠ Branch has diverged: ${commitsSinceCheckpoint} commits since checkpoint, but session recorded ${expectedCommits}.`));
-        err(chalk.red('Someone else may have pushed to this branch. Aborting to prevent data loss.'));
-        process.exit(1);
+        throw new ExitError(
+            `Branch has diverged: ${commitsSinceCheckpoint} commits since checkpoint, but session recorded ${expectedCommits}. Someone else may have pushed. Aborting to prevent data loss.`,
+            1,
+        );
     }
 
     // Confirmation
@@ -1305,7 +1309,7 @@ async function main() {
 
         if (filteredMissing.length === 0) {
             log(chalk.green('✅ No missing commits found in the selected window.'));
-            if (argv.ci) process.exit(2);
+            if (argv.ci) throw new ExitError('No commits found.', 2);
             return;
         }
 
@@ -1347,8 +1351,7 @@ async function main() {
 
                     if (argv.ci) {
                         if (depStrategy === 'fail') {
-                            err(chalk.red('Dependency check failed (--dependency-strategy fail). Aborting.'));
-                            process.exit(4);
+                            throw new ExitError('Dependency check failed (--dependency-strategy fail). Aborting.', 4);
                         }
                         // warn: already logged above, continue
                     } else {
@@ -1593,14 +1596,17 @@ async function main() {
         log(chalk.green(`\n✅ Done on ${finalBranch}`));
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
-        if (argv.ci) {
-            // Output partial JSON result on error
-            if (isJsonFormat) {
-                console.log(JSON.stringify(ciResult, null, 2));
-            }
-            process.exit(3);
+
+        // Clean up session on error too
+        try { await deleteSession(); } catch { /* ignore cleanup errors */ }
+
+        // Output partial JSON result on error
+        if (isJsonFormat) {
+            console.log(JSON.stringify(ciResult, null, 2));
         }
-        process.exit(1);
+
+        const code = e instanceof ExitError ? e.exitCode : (argv.ci ? 3 : 1);
+        process.exit(code);
     }
 }
 
@@ -1808,7 +1814,12 @@ function parseSemverIgnore(argvValue) {
         .filter(Boolean)
         .map((pattern) => {
             try {
-                return new RegExp(pattern, 'i'); // case-insensitive on full message
+                const rx = new RegExp(pattern, 'i');
+                if (!isSafeRegex(rx)) {
+                    err(chalk.red(`Rejected --ignore-semver pattern "${pattern}" — potential catastrophic backtracking`));
+                    return null;
+                }
+                return rx;
             } catch (e) {
                 err(chalk.red(`Invalid --ignore-semver pattern "${pattern}": ${e.message || e}`));
                 return null;
@@ -1837,7 +1848,12 @@ function parseIgnoreCommits(argvValue) {
         .filter(Boolean)
         .map((pattern) => {
             try {
-                return new RegExp(pattern, 'i'); // case-insensitive matching
+                const rx = new RegExp(pattern, 'i');
+                if (!isSafeRegex(rx)) {
+                    err(chalk.red(`Rejected --ignore-commits pattern "${pattern}" — potential catastrophic backtracking`));
+                    return null;
+                }
+                return rx;
             } catch (e) {
                 err(chalk.red(`Invalid --ignore-commits pattern "${pattern}": ${e.message || e}`));
                 return null;

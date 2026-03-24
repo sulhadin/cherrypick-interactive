@@ -25,7 +25,8 @@ export function renderCommitSelector(commits, gitRawFn, { devBranch, mainBranch,
         );
 
         waitUntilExit().then(() => {
-            // If somehow exited without calling onDone, resolve with empty
+            // Fallback: if exited without calling onDone, resolve with empty
+            resolve([]);
         }).catch(() => {
             resolve([]);
         });

@@ -2,14 +2,10 @@ import { Box } from 'ink';
 import { html } from './html.js';
 import { CommitRow } from './CommitRow.js';
 
-export function CommitList({ commits, selected, cursorIndex, filterText }) {
-    const filtered = filterText
-        ? commits.filter((c) => c.subject.toLowerCase().includes(filterText.toLowerCase()))
-        : commits;
-
+export function CommitList({ commits, selected, cursorIndex }) {
     const maxVisible = Math.max(5, (process.stdout.rows || 24) - 12);
     const start = Math.max(0, cursorIndex - Math.floor(maxVisible / 2));
-    const visible = filtered.slice(start, start + maxVisible);
+    const visible = commits.slice(start, start + maxVisible);
 
     return html`
         <${Box} flexDirection="column">
@@ -24,8 +20,8 @@ export function CommitList({ commits, selected, cursorIndex, filterText }) {
                     />
                 `,
             )}
-            ${filtered.length > maxVisible
-                ? html`<${Box}><${'Text'} color="dim">  ... ${filtered.length - maxVisible} more (scroll with ↑↓)</${'Text'}></${Box}>`
+            ${commits.length > maxVisible
+                ? html`<${Box}><${'Text'} color="dim">  ... ${commits.length - maxVisible} more (scroll with ↑↓)</${'Text'}></${Box}>`
                 : null}
         </${Box}>
     `;

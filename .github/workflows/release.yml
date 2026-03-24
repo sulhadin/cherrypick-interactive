@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -19,6 +23,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+          cache: 'yarn'
 
       - name: Enable Corepack
         run: corepack enable
@@ -68,10 +73,10 @@ jobs:
       - name: Bump version
         if: steps.bump.outputs.bump != 'none'
         id: version
+        env:
+          BUMP: ${{ steps.bump.outputs.bump }}
+          CURRENT: ${{ steps.current.outputs.version }}
         run: |
-          BUMP="${{ steps.bump.outputs.bump }}"
-          CURRENT="${{ steps.current.outputs.version }}"
-
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
           case "$BUMP" in
@@ -100,17 +105,20 @@ jobs:
 
       - name: Commit version bump and tag
         if: steps.bump.outputs.bump != 'none'
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json
-          git commit -m "chore(release): v${{ steps.version.outputs.new_version }} [skip ci]"
-          git tag "v${{ steps.version.outputs.new_version }}"
+          git commit -m "chore(release): v${NEW_VERSION} [skip ci]"
+          git tag "v${NEW_VERSION}"
           git push
           git push --tags
 
       - name: Create GitHub Release
         if: steps.bump.outputs.bump != 'none'
-        run: gh release create "v${{ steps.version.outputs.new_version }}" --generate-notes --title "v${{ steps.version.outputs.new_version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: gh release create "v${NEW_VERSION}" --generate-notes --title "v${NEW_VERSION}"
