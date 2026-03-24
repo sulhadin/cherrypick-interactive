@@ -30,7 +30,32 @@ if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(up
     console.log('');
     console.log(chalk.yellow('⚠️  A new version is available'));
     console.log(chalk.gray(`  ${name}: ${chalk.red(pkg.version)} → ${chalk.green(upd.latest)}`));
-    console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
+
+    // Skip interactive prompt in CI or non-TTY
+    if (process.stdout.isTTY && !process.env.CI) {
+        const { shouldUpdate } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'shouldUpdate',
+                message: `Update to ${upd.latest} now?`,
+                default: false,
+            },
+        ]);
+        if (shouldUpdate) {
+            const { execSync } = await import('node:child_process');
+            console.log(chalk.cyan(`\nUpdating ${name}...`));
+            try {
+                execSync(`npm i -g ${name}@${upd.latest}`, { stdio: 'inherit' });
+                console.log(chalk.green(`✓ Updated to ${upd.latest}. Please re-run the command.\n`));
+                process.exit(0);
+            } catch {
+                console.error(chalk.red('Update failed. Please update manually:'));
+                console.error(chalk.cyan(`  npm i -g ${name}\n`));
+            }
+        }
+    } else {
+        console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
+    }
 }
 
 const argv = yargs(hideBin(process.argv))
