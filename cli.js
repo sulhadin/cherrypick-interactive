@@ -125,6 +125,15 @@ const argv = yargs(hideBin(process.argv))
         group: 'Release options:',
     })
 
+    // ── CI options ──
+    .option('dependency-strategy', {
+        type: 'string',
+        default: 'warn',
+        describe: 'How to handle detected dependencies: warn, fail, ignore.',
+        choices: ['warn', 'fail', 'ignore'],
+        group: 'CI options:',
+    })
+
     // ── Tracker options ──
     .option('tracker', {
         type: 'string',
@@ -787,6 +796,90 @@ function applyProfile(profile, currentArgv) {
     }
 }
 
+// ── Dependency detection helpers ──
+
+const MAX_DEPENDENCY_COMMITS = 200;
+
+/**
+ * Batch-fetch changed files for a list of commit hashes in a single git call.
+ * Returns Map<hash, Set<filePath>>.
+ */
+async function batchGetChangedFiles(hashes, gitRawFn) {
+    if (hashes.length === 0) return new Map();
+
+    const fileMap = new Map();
+    for (const h of hashes) fileMap.set(h, new Set());
+
+    // Single batched call: git log --name-only --pretty=format:COMMIT:%H
+    const raw = await gitRawFn([
+        'log', '--name-only', '--pretty=format:COMMIT:%H',
+        '--no-walk', ...hashes,
+    ]);
+
+    let currentHash = null;
+    for (const line of raw.split('\n')) {
+        if (line.startsWith('COMMIT:')) {
+            currentHash = line.slice(7);
+        } else if (currentHash && line.trim()) {
+            const set = fileMap.get(currentHash);
+            if (set) set.add(line.trim());
+        }
+    }
+
+    return fileMap;
+}
+
+/**
+ * Detect potential dependencies: selected commits that share files with
+ * earlier unselected commits.
+ *
+ * @param {string[]} selected - selected hashes (oldest→newest order)
+ * @param {Array<{hash,subject}>} unselected - unselected commit objects
+ * @param {Array<{hash,subject}>} allCommits - all commits in original order (newest→oldest)
+ * @param {Function} gitRawFn
+ * @returns {Array<{selected, dependency, sharedFiles}>}
+ */
+async function detectDependencies(selected, unselected, allCommits, gitRawFn) {
+    const totalCommits = selected.length + unselected.length;
+    if (totalCommits > MAX_DEPENDENCY_COMMITS) {
+        log(chalk.yellow(`⚠ Skipping dependency detection: ${totalCommits} commits exceeds limit (${MAX_DEPENDENCY_COMMITS}).`));
+        return [];
+    }
+
+    const allHashes = [...selected, ...unselected.map((c) => c.hash)];
+    const fileMap = await batchGetChangedFiles(allHashes, gitRawFn);
+
+    // Build order index: position in original commit list (newest=0, oldest=N)
+    const orderIndex = new Map(allCommits.map((c, i) => [c.hash, i]));
+
+    const results = [];
+    const selectedSet = new Set(selected);
+
+    for (const selHash of selected) {
+        const selFiles = fileMap.get(selHash) || new Set();
+        const selOrder = orderIndex.get(selHash) ?? 0;
+
+        for (const unsel of unselected) {
+            const unselOrder = orderIndex.get(unsel.hash) ?? 0;
+            // Only check unselected commits that are OLDER (higher index = older in newest-first order)
+            if (unselOrder <= selOrder) continue;
+
+            const unselFiles = fileMap.get(unsel.hash) || new Set();
+            const shared = [...selFiles].filter((f) => unselFiles.has(f));
+
+            if (shared.length > 0) {
+                results.push({
+                    selected: selHash,
+                    dependency: unsel.hash,
+                    sharedFiles: shared,
+                });
+            }
+        }
+    }
+
+    return results;
+}
+
 // ── Tracker helpers ──
 
 const TRACKER_PRESETS = {
@@ -957,7 +1050,76 @@ async function main() {
             }
         }
 
-        const bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
+        let bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
+
+        // ── Dependency detection ──
+        const depStrategy = argv['dependency-strategy'] || 'warn';
+        if (depStrategy !== 'ignore') {
+            const selectedSet = new Set(selected);
+            const unselected = filteredMissing.filter((c) => !selectedSet.has(c.hash));
+
+            if (unselected.length > 0) {
+                const deps = await detectDependencies(bottomToTop, unselected, filteredMissing, gitRaw);
+
+                if (deps.length > 0) {
+                    // Show warnings
+                    log(chalk.yellow('\n⚠ Potential dependency detected (file-level heuristic — may be a false positive):\n'));
+                    for (const dep of deps) {
+                        const selSubj = await gitRaw(['show', '--format=%s', '-s', dep.selected]);
+                        const depSubj = await gitRaw(['show', '--format=%s', '-s', dep.dependency]);
+                        log(`  Selected:    ${chalk.dim(`(${shortSha(dep.selected)})`)} ${selSubj}`);
+                        log(`  Depends on:  ${chalk.dim(`(${shortSha(dep.dependency)})`)} ${depSubj}  ${chalk.red('[NOT SELECTED]')}`);
+                        log(`  Shared files: ${chalk.dim(dep.sharedFiles.join(', '))}\n`);
+                    }
+
+                    if (argv.ci) {
+                        if (depStrategy === 'fail') {
+                            err(chalk.red('Dependency check failed (--dependency-strategy fail). Aborting.'));
+                            process.exit(4);
+                        }
+                        // warn: already logged above, continue
+                    } else {
+                        const missingHashes = [...new Set(deps.map((d) => d.dependency))];
+                        const { choice } = await inquirer.prompt([
+                            {
+                                type: 'list',
+                                name: 'choice',
+                                message: 'How would you like to proceed?',
+                                choices: [
+                                    { name: 'Include missing commits and continue', value: 'include' },
+                                    { name: 'Go back to selection', value: 'back' },
+                                    { name: 'Continue anyway (may cause conflicts)', value: 'continue' },
+                                ],
+                            },
+                        ]);
+
+                        if (choice === 'include') {
+                            log(chalk.cyan('\nCommits to be added:'));
+                            for (const h of missingHashes) {
+                                const subj = await gitRaw(['show', '--format=%s', '-s', h]);
+                                log(`  + ${chalk.dim(`(${shortSha(h)})`)} ${subj}`);
+                            }
+                            const { confirm } = await inquirer.prompt([
+                                { type: 'confirm', name: 'confirm', message: 'Add these commits?', default: true },
+                            ]);
+                            if (confirm) {
+                                selected = [...selected, ...missingHashes];
+                                bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
+                                log(chalk.green(`✓ ${missingHashes.length} commit(s) added. Total: ${selected.length}`));
+                            }
+                        } else if (choice === 'back') {
+                            selected = await selectCommitsInteractive(filteredMissing);
+                            if (!selected.length) {
+                                log(chalk.yellow('No commits selected. Exiting.'));
+                                return;
+                            }
+                            bottomToTop = [...selected].sort((a, b) => indexByHash.get(b) - indexByHash.get(a));
+                        }
+                        // 'continue': proceed as-is
+                    }
+                }
+            }
+        }
 
         if (argv.dry_run || argv['dry-run']) {
             log(chalk.cyan('\n--dry-run: would cherry-pick (oldest → newest):'));
