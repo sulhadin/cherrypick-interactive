@@ -126,6 +126,26 @@ const argv = yargs(hideBin(process.argv))
     })
 
     // ── CI options ──
+    .option('ci', {
+        type: 'boolean',
+        default: false,
+        describe: 'Enable CI mode (fully non-interactive).',
+        group: 'CI options:',
+    })
+    .option('conflict-strategy', {
+        type: 'string',
+        default: 'fail',
+        describe: 'How to handle conflicts: fail, ours, theirs, skip.',
+        choices: ['fail', 'ours', 'theirs', 'skip'],
+        group: 'CI options:',
+    })
+    .option('format', {
+        type: 'string',
+        default: 'text',
+        describe: 'Output format: text or json. JSON goes to stdout, logs to stderr.',
+        choices: ['text', 'json'],
+        group: 'CI options:',
+    })
     .option('dependency-strategy', {
         type: 'string',
         default: 'warn',
@@ -183,8 +203,23 @@ const argv = yargs(hideBin(process.argv))
     .alias('h', 'help')
     .alias('v', 'version').argv;
 
-const log = (...a) => console.log(...a);
+// When --format json, all log output goes to stderr so stdout is clean JSON
+const isJsonFormat = process.argv.includes('--format') && process.argv.includes('json');
+if (isJsonFormat) {
+    // Disable chalk colors for clean stderr in JSON mode
+    process.env.NO_COLOR = '1';
+}
+const log = (...a) => (isJsonFormat ? console.error(...a) : console.log(...a));
 const err = (...a) => console.error(...a);
+
+// CI result collector (populated during execution, output at end)
+const ciResult = {
+    version: { previous: null, next: null, bump: null },
+    branch: null,
+    commits: { applied: [], skipped: [], total: 0 },
+    changelog: null,
+    pr: { url: null },
+};
 
 async function gitRaw(args) {
     const out = await git.raw(args);
@@ -252,8 +287,44 @@ async function handleCherryPickConflict(hash) {
         return 'skipped';
     }
 
+    const strategy = argv['conflict-strategy'] || 'fail';
+
+    // CI mode: auto-resolve based on strategy
+    if (argv.ci) {
+        err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${shortSha(hash)}).`));
+
+        if (strategy === 'fail') {
+            await gitRaw(['cherry-pick', '--abort']);
+            err(chalk.red('Conflict detected with --conflict-strategy fail. Aborting.'));
+            process.exit(1);
+        }
+
+        if (strategy === 'skip') {
+            await gitRaw(['cherry-pick', '--skip']);
+            log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${shortSha(hash)})`)}`));
+            return 'skipped';
+        }
+
+        if (strategy === 'ours') {
+            await gitRaw(['checkout', '--ours', '.']);
+            await gitRaw(['add', '.']);
+            await gitRaw(['cherry-pick', '--continue']);
+            log(chalk.yellow(`⚠ Resolved with --ours: ${chalk.dim(`(${shortSha(hash)})`)}`));
+            return 'continued';
+        }
+
+        if (strategy === 'theirs') {
+            await gitRaw(['checkout', '--theirs', '.']);
+            await gitRaw(['add', '.']);
+            await gitRaw(['cherry-pick', '--continue']);
+            log(chalk.yellow(`⚠ Resolved with --theirs: ${chalk.dim(`(${shortSha(hash)})`)}`));
+            return 'continued';
+        }
+    }
+
+    // Interactive mode
     while (true) {
-        err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${hash.slice(0, 7)}).`));
+        err(chalk.red(`\n✖ Cherry-pick has conflicts on ${hash} (${shortSha(hash)}).`));
         await showConflictsList(); // prints conflicted files (if any)
 
         const { action } = await inquirer.prompt([
@@ -271,7 +342,7 @@ async function handleCherryPickConflict(hash) {
 
         if (action === 'skip') {
             await gitRaw(['cherry-pick', '--skip']);
-            log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${hash.slice(0, 7)})`)}`));
+            log(chalk.yellow(`↷ Skipped commit ${chalk.dim(`(${shortSha(hash)})`)}`));
             return 'skipped';
         }
 
@@ -559,24 +630,26 @@ async function conflictsResolutionWizard(hash) {
 }
 
 async function cherryPickSequential(hashes) {
-    const result = { applied: 0, skipped: 0 };
+    const result = { applied: 0, skipped: 0, appliedHashes: [], skippedHashes: [] };
 
     for (const hash of hashes) {
         try {
             await gitRaw(['cherry-pick', hash]);
             const subject = await gitRaw(['show', '--format=%s', '-s', hash]);
-            log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${hash.slice(0, 7)})`)} ${subject}`);
+            log(`${chalk.green('✓')} cherry-picked ${chalk.dim(`(${shortSha(hash)})`)} ${subject}`);
             result.applied += 1;
+            result.appliedHashes.push(hash);
         } catch (e) {
             try {
                 const action = await handleCherryPickConflict(hash);
                 if (action === 'skipped') {
                     result.skipped += 1;
+                    result.skippedHashes.push(hash);
                     continue;
                 }
                 if (action === 'continued') {
-                    // --continue başarıyla commit oluşturdu
                     result.applied += 1;
+                    result.appliedHashes.push(hash);
                 }
             } catch (abortErr) {
                 err(chalk.red(`✖ Cherry-pick aborted on ${hash}`));
@@ -955,6 +1028,12 @@ async function loadTrackerFromRc() {
 
 async function main() {
     try {
+        // ── CI mode: implicitly enable --all-yes ──
+        if (argv.ci) {
+            argv['all-yes'] = true;
+            argv.allYes = true;
+        }
+
         // ── Profile handling (must run before any other logic) ──
         if (argv['list-profiles']) {
             await listProfiles();
@@ -1033,6 +1112,7 @@ async function main() {
 
         if (filteredMissing.length === 0) {
             log(chalk.green('✅ No missing commits found in the selected window.'));
+            if (argv.ci) process.exit(2);
             return;
         }
 
@@ -1235,6 +1315,10 @@ async function main() {
 
         log(chalk.gray(`\nSummary → applied: ${stats.applied}, skipped: ${stats.skipped}`));
 
+        // Populate CI result with cherry-pick stats
+        ciResult.commits.applied = stats.appliedHashes;
+        ciResult.commits.skipped = stats.skippedHashes;
+
         if (stats.applied === 0) {
             err(chalk.yellow('\nNo commits were cherry-picked (all were skipped or unresolved). Aborting.'));
             // Abort any leftover state just in case
@@ -1288,9 +1372,29 @@ async function main() {
             ? await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']) // should be release/*
             : currentBranch;
 
+        // ── Populate CI result ──
+        ciResult.version.previous = argv['current-version'] || null;
+        ciResult.version.next = computedNextVersion || null;
+        ciResult.version.bump = detectedBump || null;
+        ciResult.branch = finalBranch;
+        ciResult.commits.total = bottomToTop.length;
+        ciResult.changelog = previewChangelog;
+
+        // ── JSON output (--format json) ──
+        if (isJsonFormat) {
+            console.log(JSON.stringify(ciResult, null, 2));
+        }
+
         log(chalk.green(`\n✅ Done on ${finalBranch}`));
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
+        if (argv.ci) {
+            // Output partial JSON result on error
+            if (isJsonFormat) {
+                console.log(JSON.stringify(ciResult, null, 2));
+            }
+            process.exit(3);
+        }
         process.exit(1);
     }
 }
