@@ -39,6 +39,8 @@ describe('Undo / Rollback', () => {
     it('--undo with --ci exits with error', async () => {
         const tmpDir = await mkdtemp(join(tmpdir(), 'undo-ci-'));
         await exec('git', ['init'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.name', 'test'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
         await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: tmpDir });
 
         const { stderr, code } = await runCli(['--undo', '--ci'], tmpDir);
@@ -53,6 +55,8 @@ describe('Undo / Rollback', () => {
     it('--undo with no session file shows clear error', async () => {
         const tmpDir = await mkdtemp(join(tmpdir(), 'undo-nosession-'));
         await exec('git', ['init'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.name', 'test'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
         await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: tmpDir });
 
         const { stderr, code } = await runCli(['--undo'], tmpDir);

@@ -27,6 +27,8 @@ describe('Profiles', () => {
         // Create a temp dir that is a git repo
         tmpDir = await mkdtemp(join(tmpdir(), 'cherrypick-test-'));
         await exec('git', ['init'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.name', 'test'], { cwd: tmpDir });
+        await exec('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir });
         await exec('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: tmpDir });
     });
 
