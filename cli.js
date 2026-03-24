@@ -1502,25 +1502,6 @@ async function main() {
         }
 
         // Confirmation (skip in CI)
-        if (!argv.ci && !argv['all-yes']) {
-            // Flush stdin buffer to prevent TUI's Enter keypress from leaking into this prompt
-            await new Promise((r) => setTimeout(r, 100));
-            if (process.stdin.readable) process.stdin.read();
-
-            const { proceed } = await prompt([
-                {
-                    type: 'confirm',
-                    name: 'proceed',
-                    message: 'Proceed with cherry-pick?',
-                    default: true,
-                },
-            ]);
-            if (!proceed) {
-                log(chalk.yellow('Aborted by user.'));
-                return;
-            }
-        }
-
         if (argv.ci) {
             err(chalk.gray('[CI] Changelog preview logged. Proceeding automatically.'));
         }
