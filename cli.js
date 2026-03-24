@@ -1508,7 +1508,7 @@ async function main() {
                     type: 'confirm',
                     name: 'proceed',
                     message: 'Proceed with cherry-pick?',
-                    default: false,
+                    default: true,
                 },
             ]);
             if (!proceed) {
