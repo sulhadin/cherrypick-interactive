@@ -35,81 +35,104 @@ if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(up
 const argv = yargs(hideBin(process.argv))
     .scriptName('cherrypick-interactive')
     .usage('$0 [options]')
+    // ── Cherry-pick options ──
     .option('dev', {
         type: 'string',
         default: 'origin/dev',
         describe: 'Source branch (contains commits you want).',
+        group: 'Cherry-pick options:',
     })
     .option('main', {
         type: 'string',
         default: 'origin/main',
         describe: 'Comparison branch (commits present here will be filtered out).',
+        group: 'Cherry-pick options:',
     })
     .option('since', {
         type: 'string',
         default: '1 week ago',
         describe: 'Time window passed to git --since (e.g. "2 weeks ago", "1 month ago").',
+        group: 'Cherry-pick options:',
     })
     .option('no-fetch', {
         type: 'boolean',
         default: false,
         describe: "Skip 'git fetch --prune'.",
+        group: 'Cherry-pick options:',
     })
     .option('all-yes', {
         type: 'boolean',
         default: false,
         describe: 'Non-interactive: cherry-pick ALL missing commits (oldest → newest).',
-    })
-    .option('dry-run', {
-        type: 'boolean',
-        default: false,
-        describe: 'Print what would be cherry-picked and exit.',
-    })
-    .option('semantic-versioning', {
-        type: 'boolean',
-        default: true,
-        describe: 'Compute next semantic version from selected (or missing) commits.',
-    })
-    .option('current-version', {
-        type: 'string',
-        describe: 'Current version (X.Y.Z). Required when --semantic-versioning is set.',
-    })
-    .option('create-release', {
-        type: 'boolean',
-        default: true,
-        describe: 'Create a release branch from --main named release/<computed-version> before cherry-picking.',
-    })
-    .option('push-release', {
-        type: 'boolean',
-        default: true,
-        describe: 'After creating the release branch, push and set upstream (origin).',
-    })
-    .option('draft-pr', {
-        type: 'boolean',
-        default: false,
-        describe: 'Create the release PR as a draft.',
-    })
-    .option('version-file', {
-        type: 'string',
-        default: './package.json',
-        describe: 'Path to package.json (read current version; optional replacement for --current-version)',
-    })
-    .option('version-commit-message', {
-        type: 'string',
-        default: 'chore(release): bump version to {{version}}',
-        describe: 'Commit message template for version bump. Use {{version}} placeholder.',
-    })
-    .option('ignore-semver', {
-        type: 'string',
-        describe:
-            'Comma-separated regex patterns. If a commit message matches any, it will be treated as a chore for semantic versioning.',
+        group: 'Cherry-pick options:',
     })
     .option('ignore-commits', {
         type: 'string',
         describe:
             'Comma-separated regex patterns. If a commit message matches any, it will be omitted from the commit list.',
+        group: 'Cherry-pick options:',
     })
-    .wrap(200)
+
+    // ── Version options ──
+    .option('semantic-versioning', {
+        type: 'boolean',
+        default: true,
+        describe: 'Compute next semantic version from selected (or missing) commits.',
+        group: 'Version options:',
+    })
+    .option('current-version', {
+        type: 'string',
+        describe: 'Current version (X.Y.Z). Required when --semantic-versioning is set.',
+        group: 'Version options:',
+    })
+    .option('version-file', {
+        type: 'string',
+        default: './package.json',
+        describe: 'Path to package.json (read current version; optional replacement for --current-version)',
+        group: 'Version options:',
+    })
+    .option('version-commit-message', {
+        type: 'string',
+        default: 'chore(release): bump version to {{version}}',
+        describe: 'Commit message template for version bump. Use {{version}} placeholder.',
+        group: 'Version options:',
+    })
+    .option('ignore-semver', {
+        type: 'string',
+        describe:
+            'Comma-separated regex patterns. If a commit message matches any, it will be treated as a chore for semantic versioning.',
+        group: 'Version options:',
+    })
+
+    // ── Release options ──
+    .option('create-release', {
+        type: 'boolean',
+        default: true,
+        describe: 'Create a release branch from --main named release/<computed-version> before cherry-picking.',
+        group: 'Release options:',
+    })
+    .option('push-release', {
+        type: 'boolean',
+        default: true,
+        describe: 'After creating the release branch, push and set upstream (origin).',
+        group: 'Release options:',
+    })
+    .option('draft-pr', {
+        type: 'boolean',
+        default: false,
+        describe: 'Create the release PR as a draft.',
+        group: 'Release options:',
+    })
+
+    // ── UI options ──
+    .option('dry-run', {
+        type: 'boolean',
+        default: false,
+        describe: 'Print what would be cherry-picked and exit.',
+        group: 'UI options:',
+    })
+
+    .wrap(Math.min(120, process.stdout.columns || 120))
     .help()
     .alias('h', 'help')
     .alias('v', 'version').argv;

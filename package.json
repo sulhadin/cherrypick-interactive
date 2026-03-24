@@ -5,12 +5,17 @@
   "main": "cli.js",
   "bin": "cli.js",
   "type": "module",
+  "files": [
+    "cli.js",
+    "src/"
+  ],
   "scripts": {
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check .",
     "fix": "biome check --write .",
-    "release": "npm publish --access public"
+    "release": "npm publish --access public",
+    "test": "node --test test/**/*.test.js"
   },
   "engines": {
     "node": ">=20"
