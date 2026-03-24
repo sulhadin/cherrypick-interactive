@@ -77,4 +77,5 @@ The CI example uses Node 22, and `ink` v5 may require Node 20.11+. The current `
 04. CI mode (biggest behavioral change, needs thorough testing)
 02. Undo/rollback (independent, requires careful edge case handling)
 03. TUI dashboard (biggest scope, most new dependencies, last)
+08. Modular refactor (split cli.js into src/ modules — pure refactor, no behavioral changes)
 ```
