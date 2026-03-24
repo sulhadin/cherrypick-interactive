@@ -43,5 +43,5 @@
     "devops"
   ],
   "license": "MIT",
-  "packageManager": "yarn@4.6.0"
+  "packageManager": "yarn@4.13.0"
 }
