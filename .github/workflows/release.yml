@@ -1,0 +1,107 @@
+name: Release & Publish
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Get current version
+        id: current
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Determine version bump from commits
+        id: bump
+        run: |
+          # Get commits since last tag (or all commits if no tags)
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" "${LAST_TAG}..HEAD")
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "bump=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          BUMP="none"
+
+          # Check for breaking changes (major)
+          if echo "$COMMITS" | grep -qE "^[a-z]+(\(.+\))?!:"; then
+            BUMP="major"
+          # Check for feat (minor)
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          # Check for fix, refactor, perf, etc. (patch)
+          elif echo "$COMMITS" | grep -qE "^(fix|refactor|perf|chore|docs|style|test|ci)(\(.+\))?:"; then
+            BUMP="patch"
+          fi
+
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        if: steps.bump.outputs.bump != 'none'
+        id: version
+        run: |
+          BUMP=${{ steps.bump.outputs.bump }}
+          CURRENT=${{ steps.current.outputs.version }}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Update package.json
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${NEW_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          echo "Version: $CURRENT → $NEW_VERSION ($BUMP)"
+
+      - name: Publish to npm
+        if: steps.bump.outputs.bump != 'none'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit version bump and tag
+        if: steps.bump.outputs.bump != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore(release): v${{ steps.version.outputs.new_version }}"
+          git tag "v${{ steps.version.outputs.new_version }}"
+          git push
+          git push --tags
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.bump != 'none'
+        run: gh release create "v${{ steps.version.outputs.new_version }}" --generate-notes --title "v${{ steps.version.outputs.new_version }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

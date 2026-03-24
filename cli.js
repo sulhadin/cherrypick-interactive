@@ -959,8 +959,13 @@ async function runGh(args) {
     });
 }
 async function readJson(filePath) {
-    const raw = await fsPromises.readFile(filePath, 'utf8');
-    return JSON.parse(raw);
+    try {
+        const raw = await fsPromises.readFile(filePath, 'utf8');
+        return JSON.parse(raw);
+    } catch (e) {
+        if (e.code === 'ENOENT') return null;
+        throw e;
+    }
 }
 
 async function writeJson(filePath, data) {
@@ -968,19 +973,39 @@ async function writeJson(filePath, data) {
     await fsPromises.writeFile(filePath, text, 'utf8');
 }
 
-/** Read package.json version; throw if missing */
+/** Read package.json version; prompt to create file with 0.0.0 if it does not exist */
 async function getPkgVersion(pkgPath) {
-    const pkg = await readJson(pkgPath);
-    const v = pkg?.version;
+    let pkg = await readJson(pkgPath);
+    if (!pkg) {
+        log(chalk.yellow(`⚠ ${pkgPath} not found.`));
+        const { shouldCreate } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'shouldCreate',
+                message: `Create ${pkgPath} with version 0.0.0?`,
+                default: true,
+            },
+        ]);
+        if (!shouldCreate) {
+            throw new Error(`Version file ${pkgPath} does not exist. Aborting.`);
+        }
+        pkg = { "version": "0.0.0" };
+        await writeJson(pkgPath, pkg);
+        log(chalk.green(`✓ Created ${pkgPath} with version 0.0.0`));
+    }
+    const v = pkg.version;
     if (!v) {
         throw new Error(`No "version" field found in ${pkgPath}`);
     }
     return v;
 }
 
-/** Update package.json version in-place */
+/** Update package.json version in-place; create file if it does not exist */
 async function setPkgVersion(pkgPath, nextVersion) {
-    const pkg = await readJson(pkgPath);
+    let pkg = await readJson(pkgPath);
+    if (!pkg) {
+        pkg = {};
+    }
     pkg.version = nextVersion;
     await writeJson(pkgPath, pkg);
 }
