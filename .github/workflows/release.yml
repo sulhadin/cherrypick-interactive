@@ -27,13 +27,6 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      - name: Cache Yarn dependencies
-        uses: actions/cache@v4
-        with:
-          path: .yarn/cache
-          key: yarn-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-
-
       - name: Install dependencies
         run: yarn install --immutable
 
