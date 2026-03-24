@@ -1,4 +1,4 @@
-import { Text, Box, Spacer } from 'ink';
+import { Text, Box } from 'ink';
 import { html } from './html.js';
 
 export function CommitRow({ hash, subject, date, isSelected, isCursor }) {
@@ -13,9 +13,8 @@ export function CommitRow({ hash, subject, date, isSelected, isCursor }) {
             <${Text} color=${cursorColor}>${cursor} </${Text}>
             <${Text} color=${checkColor}>${checkbox} </${Text}>
             <${Text} color="dim">${hash.slice(0, 7)}  </${Text}>
-            <${Text} color=${subjectColor} wrap="truncate">${subject}</${Text}>
-            <${Spacer} />
-            <${Text} color="dim">${date}</${Text}>
+            <${Text} color=${subjectColor}>${subject}</${Text}>
+            <${Text} color="dim">${date ? `  (${date})` : ''}</${Text}>
         </${Box}>
     `;
 }
