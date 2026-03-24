@@ -5,16 +5,27 @@ export function CommitRow({ hash, subject, date, isSelected, isCursor }) {
     const checkbox = isSelected ? '☑' : '☐';
     const checkColor = isSelected ? 'green' : 'gray';
     const cursor = isCursor ? '>' : ' ';
-    const cursorColor = isCursor ? 'cyan' : undefined;
-    const subjectColor = isCursor ? 'white' : 'gray';
+
+    let subjectColor = 'gray';
+    let hashColor = 'dim';
+    let dateColor = 'dim';
+    if (isCursor) {
+        subjectColor = 'white';
+        hashColor = 'cyan';
+        dateColor = 'gray';
+    } else if (isSelected) {
+        subjectColor = 'green';
+        hashColor = 'green';
+        dateColor = 'green';
+    }
 
     return html`
         <${Box}>
-            <${Text} color=${cursorColor}>${cursor} </${Text}>
+            <${Text} color=${isCursor ? 'cyan' : undefined}>${cursor} </${Text}>
             <${Text} color=${checkColor}>${checkbox} </${Text}>
-            <${Text} color="dim">${hash.slice(0, 7)}  </${Text}>
+            <${Text} color=${hashColor}>${hash.slice(0, 7)}  </${Text}>
             <${Text} color=${subjectColor}>${subject}</${Text}>
-            <${Text} color="dim">${date ? `  (${date})` : ''}</${Text}>
+            <${Text} color=${dateColor}>${date ? `  (${date})` : ''}</${Text}>
         </${Box}>
     `;
 }
