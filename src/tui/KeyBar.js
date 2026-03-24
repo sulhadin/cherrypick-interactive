@@ -1,20 +1,30 @@
 import { Text, Box } from 'ink';
 import { html } from './html.js';
 
+function Key({ k, label }) {
+    return html`<${Text}><${Text} color="cyan" bold>[${k}]</${Text}><${Text} color="gray"> ${label}  </${Text}></${Text}>`;
+}
+
 export function KeyBar({ isSearching, selectedCount }) {
     if (isSearching) {
         return html`
             <${Box} paddingX=${1}>
-                <${Text} color="yellow">[Esc] cancel search  [Enter] confirm filter</${Text}>
+                <${Key} k="Esc" label="cancel" />
+                <${Key} k="Enter" label="confirm filter" />
             </${Box}>
         `;
     }
 
     return html`
-        <${Box} paddingX=${1}>
-            <${Text} color="dim">
-                [space] toggle  [a] all  [n] none  [/] search  [d] diff  [p] preview  [enter] confirm (${selectedCount})  [q] quit
-            </${Text}>
+        <${Box} paddingX=${1} flexWrap="wrap">
+            <${Key} k="space" label="toggle" />
+            <${Key} k="a" label="all" />
+            <${Key} k="n" label="none" />
+            <${Key} k="/" label="search" />
+            <${Key} k="d" label="diff" />
+            <${Key} k="p" label="preview" />
+            <${Text}><${Text} color="green" bold>[enter]</${Text}><${Text} color="gray"> confirm (${selectedCount})  </${Text}></${Text}>
+            <${Text}><${Text} color="red" bold>[q]</${Text}><${Text} color="gray"> quit</${Text}></${Text}>
         </${Box}>
     `;
 }
