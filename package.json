@@ -1,6 +1,6 @@
 {
   "name": "cherrypick-interactive",
-  "version": "1.13.6",
+  "version": "1.14.0",
   "description": "Interactively cherry-pick commits that are in dev but not in main, using subject-based comparison.",
   "main": "cli.js",
   "bin": "cli.js",
