@@ -47,6 +47,14 @@
     "interactive",
     "devops"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sulhadin/cherrypick-interactive.git"
+  },
+  "homepage": "https://github.com/sulhadin/cherrypick-interactive#readme",
+  "bugs": {
+    "url": "https://github.com/sulhadin/cherrypick-interactive/issues"
+  },
   "license": "MIT",
   "packageManager": "yarn@4.13.0"
 }
