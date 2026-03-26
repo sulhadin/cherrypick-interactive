@@ -11,6 +11,14 @@ import { App } from './App.js';
  */
 export function renderCommitSelector(commits, gitRawFn, { devBranch, mainBranch, since }) {
     return new Promise((resolve) => {
+        let resolved = false;
+        const settle = (val) => {
+            if (!resolved) {
+                resolved = true;
+                resolve(val);
+            }
+        };
+
         const { unmount, waitUntilExit } = render(
             createElement(App, {
                 commits,
@@ -19,16 +27,25 @@ export function renderCommitSelector(commits, gitRawFn, { devBranch, mainBranch,
                 mainBranch,
                 since,
                 onDone: (selectedHashes) => {
-                    resolve(selectedHashes);
+                    settle(selectedHashes);
                 },
             }),
         );
 
         waitUntilExit().then(() => {
+            // Restore stdin so subsequent prompts (inquirer) work correctly.
+            // Ink pauses stdin on unmount which causes inquirer to immediately
+            // throw ExitPromptError ("Aborted by user").
+            if (process.stdin.isPaused()) {
+                process.stdin.resume();
+            }
             // Fallback: if exited without calling onDone, resolve with empty
-            resolve([]);
+            settle([]);
         }).catch(() => {
-            resolve([]);
+            if (process.stdin.isPaused()) {
+                process.stdin.resume();
+            }
+            settle([]);
         });
     });
 }
