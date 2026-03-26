@@ -1578,7 +1578,7 @@ async function main() {
 
             log(chalk.green(`✓ package.json updated and committed: ${msg}`));
 
-            await git.push(['-u', 'origin', releaseBranch, '--no-verify']);
+            await gitRaw(['push', '-u', 'origin', releaseBranch, '--no-verify']);
 
             const ghArgs = [
                 'pr',
