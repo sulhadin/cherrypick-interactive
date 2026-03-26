@@ -1600,6 +1600,11 @@ async function main() {
             log(chalk.gray(`Pushed ${onBranch} with version bump.`));
         }
 
+        // Clean up temporary changelog file if it wasn't already removed
+        if (argv['create-release']) {
+            try { await fsPromises.unlink('RELEASE_CHANGELOG.md'); } catch {}
+        }
+
         const finalBranch = argv['create-release']
             ? await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']) // should be release/*
             : currentBranch;
