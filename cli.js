@@ -1402,11 +1402,11 @@ async function main() {
                             {
                                 type: 'list',
                                 name: 'choice',
-                                message: 'How would you like to proceed?',
+                                message: 'Some selected commits depend on unselected commits (see above). How would you like to proceed?',
                                 choices: [
-                                    { name: 'Include missing commits and continue', value: 'include' },
-                                    { name: 'Go back to selection', value: 'back' },
-                                    { name: 'Continue anyway (may cause conflicts)', value: 'continue' },
+                                    { name: 'Include missing dependency commits and continue', value: 'include' },
+                                    { name: 'Go back to commit selection', value: 'back' },
+                                    { name: 'Skip dependencies and continue anyway (may cause conflicts)', value: 'continue' },
                                 ],
                             },
                         ]);
