@@ -1,4 +1,4 @@
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import { html } from './html.js';
 import { CommitRow } from './CommitRow.js';
 
@@ -22,7 +22,7 @@ export function CommitList({ commits, selected, cursorIndex }) {
                 `,
             )}
             ${commits.length > maxVisible
-                ? html`<${Box}><${'Text'} color="dim">  ... ${commits.length - maxVisible} more (scroll with ↑↓)</${'Text'}></${Box}>`
+                ? html`<${Box}><${Text} color="dim">  ... ${commits.length - maxVisible} more (scroll with ↑↓)</${Text}></${Box}>`
                 : null}
         </${Box}>
     `;
