@@ -57,7 +57,7 @@ jobs:
           BUMP="none"
 
           # Check for breaking changes (major)
-          if echo "$COMMITS" | grep -qE "^[a-z]+(\(.+\))?!:"; then
+          if echo "$COMMITS" | grep -qE "^[a-z]+!(\(.+\))?:|^[a-z]+(\(.+\))?!:"; then
             BUMP="major"
           # Check for feat (minor)
           elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
