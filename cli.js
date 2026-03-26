@@ -1602,14 +1602,8 @@ async function main() {
 
         // Clean up temporary changelog file
         if (argv['create-release']) {
-            try {
-                await fsPromises.unlink('RELEASE_CHANGELOG.md');
-                log(chalk.gray('Cleaned up RELEASE_CHANGELOG.md'));
-            } catch (e) {
-                if (e.code !== 'ENOENT') {
-                    err(chalk.gray(`Could not remove RELEASE_CHANGELOG.md: ${e.message}`));
-                }
-            }
+            try { await gitRaw(['checkout', 'HEAD', '--', 'RELEASE_CHANGELOG.md']); } catch {}
+            try { await gitRaw(['clean', '-f', 'RELEASE_CHANGELOG.md']); } catch {}
         }
 
         const finalBranch = argv['create-release']
@@ -1643,7 +1637,8 @@ async function main() {
 
         // Clean up session and temp files on error too
         try { await deleteSession(); } catch { /* ignore cleanup errors */ }
-        try { await fsPromises.unlink('RELEASE_CHANGELOG.md'); } catch { /* ignore if not exists */ }
+        try { await gitRaw(['checkout', 'HEAD', '--', 'RELEASE_CHANGELOG.md']); } catch {}
+        try { await gitRaw(['clean', '-f', 'RELEASE_CHANGELOG.md']); } catch {}
 
         // Output partial JSON result on error
         if (isJsonFormat) {
