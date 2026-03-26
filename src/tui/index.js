@@ -3,6 +3,22 @@ import { createElement } from 'react';
 import { App } from './App.js';
 
 /**
+ * Restore process.stdin after ink unmount.
+ * Ink sets stdin.setRawMode(false) and stdin.unref() on cleanup (App.js),
+ * which causes subsequent inquirer prompts to immediately throw
+ * ExitPromptError ("Aborted by user") because the event loop stops
+ * waiting for stdin input.
+ */
+function restoreStdin() {
+    const { stdin } = process;
+    if (typeof stdin.setRawMode === 'function') {
+        stdin.setRawMode(false);
+    }
+    stdin.resume();
+    stdin.ref();
+}
+
+/**
  * Render the TUI commit selector.
  * @param {Array<{hash: string, subject: string}>} commits
  * @param {Function} gitRawFn
@@ -33,18 +49,11 @@ export function renderCommitSelector(commits, gitRawFn, { devBranch, mainBranch,
         );
 
         waitUntilExit().then(() => {
-            // Restore stdin so subsequent prompts (inquirer) work correctly.
-            // Ink pauses stdin on unmount which causes inquirer to immediately
-            // throw ExitPromptError ("Aborted by user").
-            if (process.stdin.isPaused()) {
-                process.stdin.resume();
-            }
+            restoreStdin();
             // Fallback: if exited without calling onDone, resolve with empty
             settle([]);
         }).catch(() => {
-            if (process.stdin.isPaused()) {
-                process.stdin.resume();
-            }
+            restoreStdin();
             settle([]);
         });
     });
