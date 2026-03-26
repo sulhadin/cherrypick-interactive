@@ -1600,9 +1600,16 @@ async function main() {
             log(chalk.gray(`Pushed ${onBranch} with version bump.`));
         }
 
-        // Clean up temporary changelog file if it wasn't already removed
+        // Clean up temporary changelog file
         if (argv['create-release']) {
-            try { await fsPromises.unlink('RELEASE_CHANGELOG.md'); } catch {}
+            try {
+                await fsPromises.unlink('RELEASE_CHANGELOG.md');
+                log(chalk.gray('Cleaned up RELEASE_CHANGELOG.md'));
+            } catch (e) {
+                if (e.code !== 'ENOENT') {
+                    err(chalk.gray(`Could not remove RELEASE_CHANGELOG.md: ${e.message}`));
+                }
+            }
         }
 
         const finalBranch = argv['create-release']
@@ -1634,8 +1641,9 @@ async function main() {
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
 
-        // Clean up session on error too
+        // Clean up session and temp files on error too
         try { await deleteSession(); } catch { /* ignore cleanup errors */ }
+        try { await fsPromises.unlink('RELEASE_CHANGELOG.md'); } catch { /* ignore if not exists */ }
 
         // Output partial JSON result on error
         if (isJsonFormat) {
