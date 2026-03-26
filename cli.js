@@ -1621,6 +1621,11 @@ async function main() {
         await deleteSession();
 
         log(chalk.green(`\n✅ Done on ${finalBranch}`));
+
+        // Allow process to exit naturally. stdin.ref() may have been called
+        // after ink unmount to keep inquirer prompts working; unref it now
+        // so the event loop can drain.
+        process.stdin.unref();
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
 
