@@ -1689,7 +1689,7 @@ async function ensureReleaseBranchFresh(branchName, startPoint) {
 
     if (remoteExists) {
         try {
-            await gitRaw(['push', 'origin', '--delete', branchName]);
+            await gitRaw(['push', 'origin', '--delete', branchName, '--no-verify']);
             log(chalk.yellow(`↷ Deleted existing remote branch origin/${branchName}`));
         } catch (e) {
             err(chalk.red(`Failed to delete remote branch origin/${branchName}: ${e.message || e}`));
