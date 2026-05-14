@@ -9,8 +9,8 @@ import { App } from './App.js';
  * ExitPromptError ("Aborted by user") because the event loop stops
  * waiting for stdin input.
  */
-function restoreStdin() {
-    const { stdin } = process;
+async function restoreStdin() {
+    const { stdin, stdout } = process;
     // Strip listeners ink attached so inquirer's readline can own stdin.
     stdin.removeAllListeners('data');
     stdin.removeAllListeners('keypress');
@@ -22,6 +22,13 @@ function restoreStdin() {
     stdin.ref();
     // Pause so inquirer can re-enter raw mode cleanly on the next prompt.
     stdin.pause();
+    // Ink hides the cursor and may not restore it; force show + reset SGR so
+    // the next inquirer prompt's choices and pointer are visible.
+    if (stdout.isTTY) {
+        stdout.write('\x1B[?25h\x1B[0m');
+    }
+    // Yield a tick so any pending ink writes flush before the caller renders.
+    await new Promise((r) => setImmediate(r));
 }
 
 /**
@@ -54,12 +61,12 @@ export function renderCommitSelector(commits, gitRawFn, { devBranch, mainBranch,
             }),
         );
 
-        waitUntilExit().then(() => {
-            restoreStdin();
+        waitUntilExit().then(async () => {
+            await restoreStdin();
             // Fallback: if exited without calling onDone, resolve with empty
             settle([]);
-        }).catch(() => {
-            restoreStdin();
+        }).catch(async () => {
+            await restoreStdin();
             settle([]);
         });
     });
