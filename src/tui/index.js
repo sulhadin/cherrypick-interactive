@@ -11,11 +11,17 @@ import { App } from './App.js';
  */
 function restoreStdin() {
     const { stdin } = process;
+    // Strip listeners ink attached so inquirer's readline can own stdin.
+    stdin.removeAllListeners('data');
+    stdin.removeAllListeners('keypress');
+    stdin.removeAllListeners('readable');
     if (typeof stdin.setRawMode === 'function') {
         stdin.setRawMode(false);
     }
-    stdin.resume();
+    // Keep the event loop alive; ink called unref() on cleanup.
     stdin.ref();
+    // Pause so inquirer can re-enter raw mode cleanly on the next prompt.
+    stdin.pause();
 }
 
 /**
