@@ -347,9 +347,15 @@ async function selectCommitsInteractive(missing) {
     return selected;
 }
 
-async function handleCherryPickConflict(hash) {
+async function handleCherryPickConflict(hash, gitError) {
+    // No CHERRY_PICK_HEAD means git refused to start (dirty index, index.lock, bad ref):
+    // a conflict or an empty pick always leaves one behind.
     if (!(await isCherryPickInProgress())) {
-        return 'skipped';
+        const detail = String(gitError?.message || gitError || '').trim();
+        throw new ExitError(
+            `git cherry-pick ${shortSha(hash)} failed before starting${detail ? `:\n${detail}` : '.'}`,
+            1,
+        );
     }
 
     const strategy = argv['conflict-strategy'] || 'fail';
@@ -705,7 +711,7 @@ async function cherryPickSequential(hashes) {
             result.appliedHashes.push(hash);
         } catch (e) {
             try {
-                const action = await handleCherryPickConflict(hash);
+                const action = await handleCherryPickConflict(hash, e);
                 if (action === 'skipped') {
                     result.skipped += 1;
                     result.skippedHashes.push(hash);
@@ -971,11 +977,13 @@ async function selectCommitsWithTuiOrFallback(commits) {
 
 // ── Session helpers (undo/rollback) ──
 
-const SESSION_FILENAME = '.cherrypick-session.json';
+const SESSION_FILENAME = 'cherrypick-session.json';
 
+// Lives inside .git/ like rebase/merge state: a file in the worktree gets auto-staged
+// by IDEs, and a dirty index makes git refuse every following cherry-pick.
 async function getSessionPath() {
-    const root = await getRepoRoot();
-    return join(root, SESSION_FILENAME);
+    const gitDir = await gitRaw(['rev-parse', '--absolute-git-dir']);
+    return join(gitDir, SESSION_FILENAME);
 }
 
 async function saveSession({ branch, checkpoint, commits }) {

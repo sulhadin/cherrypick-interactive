@@ -70,17 +70,6 @@ describe('Undo / Rollback', () => {
 });
 
 describe('Session file management', () => {
-    it('.cherrypick-session.json is in .gitignore', async () => {
-        const gitignore = await readFile(
-            join(__dirname, '..', '.gitignore'),
-            'utf8',
-        );
-        assert.ok(
-            gitignore.includes('.cherrypick-session.json'),
-            'should be in .gitignore',
-        );
-    });
-
     it('session file structure includes required fields', () => {
         // Verify expected structure
         const session = {
@@ -96,13 +85,10 @@ describe('Session file management', () => {
         assert.ok(Array.isArray(session.commits), 'commits should be array');
     });
 
-    it('session file path resolves from git repo root', () => {
-        // Verify in source code that getSessionPath uses getRepoRoot
-        const source = readFile(join(__dirname, '..', 'cli.js'), 'utf8');
-        source.then((code) => {
-            assert.ok(code.includes('async function getSessionPath()'), 'should have getSessionPath');
-            assert.ok(code.includes('getRepoRoot()'), 'getSessionPath should use getRepoRoot');
-        });
+    it('session file path resolves inside the git dir, not the worktree', async () => {
+        const code = await readFile(join(__dirname, '..', 'cli.js'), 'utf8');
+        assert.ok(code.includes('async function getSessionPath()'), 'should have getSessionPath');
+        assert.ok(code.includes("'--absolute-git-dir'"), 'getSessionPath should resolve via the git dir');
     });
 });
 

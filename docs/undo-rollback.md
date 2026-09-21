@@ -10,7 +10,7 @@ cherrypick-interactive --undo
 
 ## How It Works
 
-1. Before each cherry-pick session, a checkpoint is automatically saved (`.cherrypick-session.json`)
+1. Before each cherry-pick session, a checkpoint is automatically saved (`.git/cherrypick-session.json`)
 2. When `--undo` is run:
    - Validates the checkpoint hash is an ancestor of current HEAD
    - Checks for branch divergence (extra unknown commits)
@@ -30,7 +30,7 @@ cherrypick-interactive --undo
 
 ## Session File
 
-The session is stored in `.cherrypick-session.json` at the git repository root:
+The session is stored in `.git/cherrypick-session.json`, next to git's own rebase/merge state, so it never shows up in the working tree or gets picked up by an IDE's auto-add:
 
 ```json
 {
@@ -45,7 +45,6 @@ This file is:
 - Created automatically before each cherry-pick session
 - Deleted on successful completion (PR created/pushed)
 - Deleted after a successful undo
-- Listed in `.gitignore`
 
 ## Limitations
 
