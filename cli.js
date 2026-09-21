@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { promises as fsPromises, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
@@ -1377,9 +1378,7 @@ async function main() {
             const startPoint = argv.main; // e.g., 'origin/main' or a local ref
             await ensureReleaseBranchFresh(releaseBranch, startPoint);
 
-            await fsPromises.writeFile('RELEASE_CHANGELOG.md', previewChangelog, 'utf8');
-            await gitRaw(['reset', 'RELEASE_CHANGELOG.md']);
-            log(chalk.gray(`✅ Generated changelog for ${releaseBranch} → RELEASE_CHANGELOG.md`));
+            log(chalk.gray(`✅ Generated changelog for ${releaseBranch}`));
 
             log(chalk.cyan(`\nCreating ${chalk.bold(releaseBranch)} from ${chalk.bold(startPoint)}...`));
 
@@ -1433,6 +1432,10 @@ async function main() {
 
             await gitRaw(['push', '-u', 'origin', releaseBranch, '--no-verify']);
 
+            // The PR body goes through a file outside the repo: anything written into the
+            // worktree shows up as an uncommitted change and can end up in a commit.
+            const bodyFile = join(tmpdir(), `cherrypick-interactive-${process.pid}.md`);
+            await fsPromises.writeFile(bodyFile, previewChangelog, 'utf8');
             const ghArgs = [
                 'pr',
                 'create',
@@ -1443,20 +1446,18 @@ async function main() {
                 '--title',
                 prTitle,
                 '--body-file',
-                'RELEASE_CHANGELOG.md',
+                bodyFile,
             ];
             if (argv['draft-pr']) {
                 ghArgs.push('--draft');
             }
 
-            await runGh(ghArgs);
+            try {
+                await runGh(ghArgs);
+            } finally {
+                await fsPromises.unlink(bodyFile).catch(() => {});
+            }
             log(chalk.gray(`Pushed ${releaseBranch} with version bump.`));
-        }
-
-        // Clean up temporary changelog file
-        if (argv['create-release']) {
-            try { await gitRaw(['checkout', 'HEAD', '--', 'RELEASE_CHANGELOG.md']); } catch {}
-            try { await gitRaw(['clean', '-f', 'RELEASE_CHANGELOG.md']); } catch {}
         }
 
         const finalBranch = argv['create-release']
@@ -1485,9 +1486,6 @@ async function main() {
         process.stdin.unref?.();
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
-
-        try { await gitRaw(['checkout', 'HEAD', '--', 'RELEASE_CHANGELOG.md']); } catch {}
-        try { await gitRaw(['clean', '-f', 'RELEASE_CHANGELOG.md']); } catch {}
 
         // Output partial JSON result on error
         if (isJsonFormat) {
