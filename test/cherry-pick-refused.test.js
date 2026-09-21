@@ -2,9 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, rm, writeFile, readFile, access } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, access, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const exec = promisify(execFile);
@@ -129,6 +129,59 @@ describe('Release branch without push', () => {
 
         await rm(dir, { recursive: true, force: true });
         await rm(remote, { recursive: true, force: true });
+    });
+});
+
+describe('Release branch with push', () => {
+    it('hands gh a PR body outside the repo and leaves the worktree clean', async () => {
+        const dir = await makeRepo();
+        const remote = await mkdtemp(join(tmpdir(), 'cp-remote-'));
+        await git(remote, 'init', '-q', '--bare');
+        await git(dir, 'remote', 'add', 'origin', remote);
+        await writeFile(join(dir, 'package.json'), '{ "version": "1.0.0" }\n');
+        // A committed changelog is what a real repo ends up with once one leaks into a release.
+        await writeFile(join(dir, 'RELEASE_CHANGELOG.md'), '## Release 0.9.0\n');
+        await git(dir, 'add', 'package.json', 'RELEASE_CHANGELOG.md');
+        await git(dir, 'commit', '-qm', 'add package.json');
+
+        // Fake gh: records the --body-file path and its contents.
+        const bin = await mkdtemp(join(tmpdir(), 'cp-bin-'));
+        const record = join(bin, 'record.json');
+        await writeFile(
+            join(bin, 'gh'),
+            `#!/bin/sh
+[ "$1" = "--version" ] && exit 0
+while [ $# -gt 0 ]; do
+  [ "$1" = "--body-file" ] && { printf '{"path":"%s","body":%s}' "$2" "$(node -p 'JSON.stringify(require("fs").readFileSync(process.argv[1],"utf8"))' "$2")" > "${record}"; }
+  shift
+done
+exit 0
+`,
+        );
+        await chmod(join(bin, 'gh'), 0o755);
+
+        const { stdout, stderr, code } = await exec(
+            'node',
+            [CLI, '--ci', '--dev', 'feat', '--main', 'main', '--since', '1 year ago'],
+            { cwd: dir, timeout: 15000, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } },
+        ).then((r) => ({ ...r, code: 0 }), (e) => ({ stdout: e.stdout || '', stderr: e.stderr || '', code: e.code || 1 }));
+        assert.equal(code, 0, `should succeed, got:\n${stdout}${stderr}`);
+
+        const { path, body } = JSON.parse(await readFile(record, 'utf8'));
+        const bodyFile = resolve(dir, path);
+        assert.ok(!bodyFile.startsWith(dir), `PR body must not be written into the repo, got ${bodyFile}`);
+        assert.ok(body.includes('## Release 1.1.0'), 'PR body must be the generated changelog');
+        assert.equal(await fileExists(bodyFile), false, 'temp body file must be removed');
+
+        const { stdout: status } = await git(dir, 'status', '--porcelain');
+        assert.equal(status.trim(), '', 'working tree must be clean after a run');
+        assert.equal(await readFile(join(dir, 'RELEASE_CHANGELOG.md'), 'utf8'), '## Release 0.9.0\n', 'committed changelog must be untouched');
+        const { stdout: pushed } = await git(dir, 'ls-remote', '--heads', 'origin', 'release/1.1.0');
+        assert.ok(pushed.trim(), 'release branch must be pushed');
+
+        await rm(dir, { recursive: true, force: true });
+        await rm(remote, { recursive: true, force: true });
+        await rm(bin, { recursive: true, force: true });
     });
 });
 
