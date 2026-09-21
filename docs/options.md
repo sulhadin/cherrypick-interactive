@@ -29,7 +29,7 @@ See [Semantic Versioning](semantic-versioning.md) for details.
 
 | Flag | Description | Default |
 |------|--------------|----------|
-| `--create-release` | Create `release/x.y.z` branch from `main` | `true` |
+| `--create-release` | Create `release/x.y.z` branch from `main` and commit the version bump on it | `true` |
 | `--push-release` | Push release branch to origin and create PR | `true` |
 | `--draft-pr` | Create the GitHub PR as a draft | `false` |
 
@@ -63,14 +63,6 @@ See [Tracker Integration](tracker-integration.md) for presets and custom pattern
 | `--list-profiles` | List available profiles and exit | `false` |
 
 See [Profiles](profiles.md) for config file format and CI usage.
-
-## Session options
-
-| Flag | Description | Default |
-|------|--------------|----------|
-| `--undo` | Reset release branch to pre-cherry-pick state | `false` |
-
-See [Undo / Rollback](undo-rollback.md) for safety checks and limitations.
 
 ## UI options
 
