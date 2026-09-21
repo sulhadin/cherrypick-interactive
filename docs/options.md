@@ -29,7 +29,7 @@ See [Semantic Versioning](semantic-versioning.md) for details.
 
 | Flag | Description | Default |
 |------|--------------|----------|
-| `--create-release` | Create `release/x.y.z` branch from `main` | `true` |
+| `--create-release` | Create `release/x.y.z` branch from `main` and commit the version bump on it | `true` |
 | `--push-release` | Push release branch to origin and create PR | `true` |
 | `--draft-pr` | Create the GitHub PR as a draft | `false` |
 

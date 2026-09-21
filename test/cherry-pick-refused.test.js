@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const exec = promisify(execFile);
@@ -98,6 +98,37 @@ describe('git refuses to start a cherry-pick', () => {
         assert.ok((stdout + stderr).includes('applied: 2, skipped: 0'));
 
         await rm(dir, { recursive: true, force: true });
+    });
+});
+
+describe('Release branch without push', () => {
+    it('still bumps the version on the release branch', async () => {
+        const dir = await makeRepo();
+        // ensureReleaseBranchFresh queries origin, so the repo needs one even without a push.
+        const remote = await mkdtemp(join(tmpdir(), 'cp-remote-'));
+        await git(remote, 'init', '-q', '--bare');
+        await git(dir, 'remote', 'add', 'origin', remote);
+        await writeFile(join(dir, 'package.json'), '{ "version": "1.0.0" }\n');
+        await git(dir, 'add', 'package.json');
+        await git(dir, 'commit', '-qm', 'add package.json');
+
+        const { stdout, stderr, code } = await runCli(
+            ['--ci', '--dev', 'feat', '--main', 'main', '--since', '1 year ago', '--no-push-release'],
+            dir,
+        );
+        assert.equal(code, 0, `should succeed, got:\n${stdout}${stderr}`);
+
+        const { stdout: branch } = await git(dir, 'rev-parse', '--abbrev-ref', 'HEAD');
+        assert.equal(branch.trim(), 'release/1.1.0');
+        const { stdout: subject } = await git(dir, 'log', '-1', '--format=%s');
+        assert.equal(subject.trim(), 'chore(release): bump version to 1.1.0');
+        const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'));
+        assert.equal(pkg.version, '1.1.0');
+        const { stdout: pushed } = await git(dir, 'ls-remote', '--heads', 'origin', 'release/*');
+        assert.equal(pushed.trim(), '', 'must not push');
+
+        await rm(dir, { recursive: true, force: true });
+        await rm(remote, { recursive: true, force: true });
     });
 });
 

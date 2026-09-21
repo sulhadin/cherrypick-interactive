@@ -1410,11 +1410,8 @@ async function main() {
             throw new Error('Nothing cherry-picked');
         }
 
-        if (argv['push-release']) {
-            const baseBranchForGh = stripOrigin(argv.main); // 'origin/main' -> 'main'
-            const prTitle = `Release ${computedNextVersion}`;
+        if (argv['create-release']) {
             const releaseBranch = `release/${computedNextVersion}`;
-
             const onBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']);
             if (!onBranch.startsWith(releaseBranch)) {
                 throw new Error(`Version update should happen on a release branch. Current: ${onBranch}`);
@@ -1427,6 +1424,12 @@ async function main() {
             await git.raw(['commit', '--no-verify', '-m', msg]);
 
             log(chalk.green(`✓ package.json updated and committed: ${msg}`));
+        }
+
+        if (argv['create-release'] && argv['push-release']) {
+            const baseBranchForGh = stripOrigin(argv.main); // 'origin/main' -> 'main'
+            const prTitle = `Release ${computedNextVersion}`;
+            const releaseBranch = `release/${computedNextVersion}`;
 
             await gitRaw(['push', '-u', 'origin', releaseBranch, '--no-verify']);
 
@@ -1447,7 +1450,7 @@ async function main() {
             }
 
             await runGh(ghArgs);
-            log(chalk.gray(`Pushed ${onBranch} with version bump.`));
+            log(chalk.gray(`Pushed ${releaseBranch} with version bump.`));
         }
 
         // Clean up temporary changelog file
