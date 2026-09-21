@@ -216,14 +216,6 @@ const argv = yargs(hideBin(process.argv))
         group: 'Profile options:',
     })
 
-    // ── Session options ──
-    .option('undo', {
-        type: 'boolean',
-        default: false,
-        describe: 'Reset current release branch to pre-cherry-pick state.',
-        group: 'Session options:',
-    })
-
     // ── UI options ──
     .option('no-tui', {
         type: 'boolean',
@@ -975,139 +967,6 @@ async function selectCommitsWithTuiOrFallback(commits) {
     return selectCommitsInteractive(commits);
 }
 
-// ── Session helpers (undo/rollback) ──
-
-const SESSION_FILENAME = 'cherrypick-session.json';
-
-// Lives inside .git/ like rebase/merge state: a file in the worktree gets auto-staged
-// by IDEs, and a dirty index makes git refuse every following cherry-pick.
-async function getSessionPath() {
-    const gitDir = await gitRaw(['rev-parse', '--absolute-git-dir']);
-    return join(gitDir, SESSION_FILENAME);
-}
-
-async function saveSession({ branch, checkpoint, commits }) {
-    const sessionPath = await getSessionPath();
-    const data = {
-        branch,
-        checkpoint,
-        timestamp: new Date().toISOString(),
-        commits,
-    };
-    await writeJson(sessionPath, data);
-}
-
-async function loadSession() {
-    const sessionPath = await getSessionPath();
-    return readJson(sessionPath);
-}
-
-async function deleteSession() {
-    const sessionPath = await getSessionPath();
-    try {
-        await fsPromises.unlink(sessionPath);
-    } catch (e) {
-        if (e.code !== 'ENOENT') throw e;
-    }
-}
-
-async function hasRemoteTrackingBranch() {
-    try {
-        await gitRaw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function handleUndo() {
-    // --undo + --ci is not allowed
-    if (argv.ci) {
-        throw new ExitError('--undo is interactive-only and cannot be used with --ci. In CI, re-run the pipeline instead.', 1);
-    }
-
-    const session = await loadSession();
-    if (!session) {
-        throw new ExitError(`No active session to undo. (${SESSION_FILENAME} not found)`, 1);
-    }
-
-    const currentBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']);
-
-    // Warn if on a different branch
-    if (currentBranch !== session.branch) {
-        log(chalk.yellow(`⚠ You are on "${currentBranch}" but the session was created on "${session.branch}".`));
-        const { switchBranch } = await prompt([
-            { type: 'confirm', name: 'switchBranch', message: `Switch to ${session.branch}?`, default: true },
-        ]);
-        if (switchBranch) {
-            await gitRaw(['checkout', session.branch]);
-        } else {
-            log(chalk.yellow('Aborted.'));
-            return;
-        }
-    }
-
-    // Validate checkpoint is an ancestor of current HEAD
-    try {
-        await gitRaw(['merge-base', '--is-ancestor', session.checkpoint, 'HEAD']);
-    } catch {
-        throw new ExitError(`Checkpoint ${shortSha(session.checkpoint)} is not an ancestor of current HEAD. Session may be corrupt.`, 1);
-    }
-
-    // Divergence check: count commits between checkpoint and HEAD
-    const revCount = await gitRaw(['rev-list', '--count', `${session.checkpoint}..HEAD`]);
-    const commitsSinceCheckpoint = Number.parseInt(revCount.trim(), 10);
-    const expectedCommits = session.commits?.length || 0;
-
-    if (commitsSinceCheckpoint > expectedCommits) {
-        throw new ExitError(
-            `Branch has diverged: ${commitsSinceCheckpoint} commits since checkpoint, but session recorded ${expectedCommits}. Someone else may have pushed. Aborting to prevent data loss.`,
-            1,
-        );
-    }
-
-    // Confirmation
-    log(chalk.yellow(`\n⚠ WARNING: This will rewrite remote history for ${session.branch}.`));
-    log(chalk.yellow('  Anyone else working on this branch will be affected.\n'));
-    log(`  Checkpoint: ${chalk.dim(shortSha(session.checkpoint))}`);
-    log(`  Commits to discard: ${commitsSinceCheckpoint}`);
-    log(chalk.gray('  This is an all-or-nothing rollback — individual commits cannot be selectively removed.\n'));
-
-    const { proceed } = await prompt([
-        { type: 'confirm', name: 'proceed', message: 'Continue?', default: false },
-    ]);
-
-    if (!proceed) {
-        log(chalk.yellow('Aborted.'));
-        return;
-    }
-
-    // Reset
-    await gitRaw(['reset', '--hard', session.checkpoint]);
-    log(chalk.green(`✓ Branch reset to ${shortSha(session.checkpoint)}.`));
-
-    // Force push if remote exists
-    if (await hasRemoteTrackingBranch()) {
-        await gitRaw(['push', '--force-with-lease']);
-        log(chalk.green('✓ Force pushed with --force-with-lease.'));
-    } else {
-        log(chalk.gray('(No remote tracking branch — skipped push)'));
-    }
-
-    // Clean up
-    await deleteSession();
-
-    // Summary
-    log(chalk.green(`\nBranch ${session.branch} has been reset to ${shortSha(session.checkpoint)}. You can now re-select commits.`));
-
-    // Offer to re-open selection
-    const { reopen } = await prompt([
-        { type: 'confirm', name: 'reopen', message: 'Re-open commit selection?', default: true },
-    ]);
-
-    return reopen;
-}
-
 // ── Dependency detection helpers ──
 
 const MAX_DEPENDENCY_COMMITS = 200;
@@ -1267,14 +1126,6 @@ async function loadTrackerFromRc() {
 
 async function main() {
     try {
-        // ── Undo handling (must run before anything else) ──
-        if (argv.undo) {
-            const shouldReopen = await handleUndo();
-            if (!shouldReopen) return;
-            argv.undo = false;
-            // Fall through to normal flow (re-open selection)
-        }
-
         // ── CI mode: implicitly enable --all-yes ──
         if (argv.ci) {
             argv['all-yes'] = true;
@@ -1540,15 +1391,6 @@ async function main() {
             log(chalk.bold(`Base branch: ${currentBranch}`));
         }
 
-        // ── Save session checkpoint before cherry-pick ──
-        const checkpointHash = await gitRaw(['rev-parse', 'HEAD']);
-        const sessionBranch = await gitRaw(['rev-parse', '--abbrev-ref', 'HEAD']);
-        await saveSession({
-            branch: sessionBranch,
-            checkpoint: checkpointHash,
-            commits: bottomToTop,
-        });
-
         log(chalk.cyan(`\nCherry-picking ${bottomToTop.length} commit(s) onto ${currentBranch} (oldest → newest)...\n`));
 
         const stats = await cherryPickSequential(bottomToTop);
@@ -1631,20 +1473,16 @@ async function main() {
             console.log(JSON.stringify(ciResult, null, 2));
         }
 
-        // Clean up session on success
-        await deleteSession();
-
         log(chalk.green(`\n✅ Done on ${finalBranch}`));
 
         // Allow process to exit naturally. stdin.ref() may have been called
         // after ink unmount to keep inquirer prompts working; unref it now
-        // so the event loop can drain.
-        process.stdin.unref();
+        // so the event loop can drain. stdin is a plain fs stream (no unref)
+        // when it is a file or /dev/null.
+        process.stdin.unref?.();
     } catch (e) {
         err(chalk.red(`\n❌ Error: ${e.message || e}`));
 
-        // Clean up session and temp files on error too
-        try { await deleteSession(); } catch { /* ignore cleanup errors */ }
         try { await gitRaw(['checkout', 'HEAD', '--', 'RELEASE_CHANGELOG.md']); } catch {}
         try { await gitRaw(['clean', '-f', 'RELEASE_CHANGELOG.md']); } catch {}
 

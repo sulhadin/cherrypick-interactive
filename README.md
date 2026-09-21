@@ -56,7 +56,6 @@ For a full release workflow, see the [Quick Start guide](https://github.com/sulh
 - 🧾 Generates a Markdown changelog with [**ticket linking**](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/tracker-integration.md)
 - 🖥️ Rich [**TUI dashboard**](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/tui-dashboard.md) with diff preview, search, and keyboard shortcuts
 - 🤖 [**CI mode**](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/ci-mode.md) for fully non-interactive pipeline execution
-- ↩️ [**Undo / rollback**](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/undo-rollback.md) with checkpoint-based session recovery
 - 💾 [**Profiles**](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/profiles.md) to save and reuse CLI flag combinations
 
 ---
@@ -66,7 +65,7 @@ For a full release workflow, see the [Quick Start guide](https://github.com/sulh
 | Topic | Description |
 |-------|-------------|
 | [🚀 Quick Start](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/quick-start.md) | Getting started, full workflow, custom branches |
-| [🧩 Common Use Cases](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/common-use-cases.md) | Filtering, profiles, CI, tracker, undo, and more |
+| [🧩 Common Use Cases](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/common-use-cases.md) | Filtering, profiles, CI, tracker, and more |
 | [⚙️ All Options](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/options.md) | Complete reference for all CLI flags |
 | [⚔️ Conflict Resolution](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/conflict-resolution.md) | Per-file and bulk resolution, CI strategies |
 | [🧠 Semantic Versioning](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/semantic-versioning.md) | Conventional commits, version sources, ignore patterns |
@@ -74,7 +73,6 @@ For a full release workflow, see the [Quick Start guide](https://github.com/sulh
 | [💾 Profiles](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/profiles.md) | Save/load/list profiles, config file, CI usage |
 | [🔗 Tracker Integration](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/tracker-integration.md) | ClickUp, Jira, Linear presets, custom patterns |
 | [🤖 CI Mode](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/ci-mode.md) | Exit codes, JSON output, GitHub Actions example |
-| [↩️ Undo / Rollback](https://github.com/sulhadin/cherrypick-interactive/blob/main/docs/undo-rollback.md) | Checkpoint system, safety checks, limitations |
 
 ---
 

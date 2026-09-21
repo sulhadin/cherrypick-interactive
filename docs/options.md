@@ -64,14 +64,6 @@ See [Tracker Integration](tracker-integration.md) for presets and custom pattern
 
 See [Profiles](profiles.md) for config file format and CI usage.
 
-## Session options
-
-| Flag | Description | Default |
-|------|--------------|----------|
-| `--undo` | Reset release branch to pre-cherry-pick state | `false` |
-
-See [Undo / Rollback](undo-rollback.md) for safety checks and limitations.
-
 ## UI options
 
 | Flag | Description | Default |

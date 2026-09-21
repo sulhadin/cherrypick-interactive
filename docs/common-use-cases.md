@@ -64,27 +64,19 @@ cherrypick-interactive --tracker clickup --tracker-url "https://app.clickup.com/
 
 See [Tracker Integration](tracker-integration.md) for presets and custom patterns.
 
-## 9. Undo the last cherry-pick session
-
-```bash
-cherrypick-interactive --undo
-```
-
-See [Undo / Rollback](undo-rollback.md) for safety checks and details.
-
-## 10. Custom time window
+## 9. Custom time window
 
 ```bash
 cherrypick-interactive --since "3 months ago"
 ```
 
-## 11. Different branch names
+## 10. Different branch names
 
 ```bash
 cherrypick-interactive --dev origin/develop --main origin/production
 ```
 
-## 12. Skip git fetch
+## 11. Skip git fetch
 
 ```bash
 cherrypick-interactive --no-fetch

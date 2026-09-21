@@ -101,8 +101,8 @@ describe('git refuses to start a cherry-pick', () => {
     });
 });
 
-describe('Session file location', () => {
-    it('never touches the working tree', async () => {
+describe('Working tree hygiene', () => {
+    it('leaves nothing behind in the repo after a run', async () => {
         const dir = await makeRepo();
 
         const { code } = await runCli(CI_ARGS, dir);
@@ -111,22 +111,6 @@ describe('Session file location', () => {
         assert.equal(await fileExists(join(dir, '.cherrypick-session.json')), false);
         const { stdout: status } = await git(dir, 'status', '--porcelain');
         assert.equal(status.trim(), '', 'working tree must be clean after a run');
-
-        await rm(dir, { recursive: true, force: true });
-    });
-
-    it('--undo reads the session from the git dir', async () => {
-        const dir = await makeRepo();
-        const { stdout: head } = await git(dir, 'rev-parse', 'HEAD');
-        await writeFile(
-            join(dir, '.git', 'cherrypick-session.json'),
-            JSON.stringify({ branch: 'main', checkpoint: head.trim(), timestamp: 'now', commits: [] }),
-        );
-
-        // The confirm prompt has no stdin here, so the run ends there; what matters is
-        // that the session was found rather than reported missing.
-        const { stdout, stderr } = await runCli(['--undo'], dir);
-        assert.ok(!(stdout + stderr).includes('No active session'), 'session in .git/ must be found');
 
         await rm(dir, { recursive: true, force: true });
     });
