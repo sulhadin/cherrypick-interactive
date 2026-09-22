@@ -1,0 +1,11 @@
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json",
+  // Any rulesync target/feature works here; `npx rulesync generate --help` lists them.
+  // With "rules" enabled and several targets writing AGENTS.md, the last target wins — keep codexcli last.
+  "targets": ["claudecode", "codexcli", "copilot", "opencode", "cline", "roo", "kiro", "junie", "warp", "qwencode", "augmentcode"],
+  "features": ["skills"],
+  "sources": [
+    // Bumped automatically by agentbase's sync workflow. Do not edit by hand.
+    { "source": "sulhadin/agentbase", "ref": "v0.1.1", "skills": ["*"] }
+  ]
+}
