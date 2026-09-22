@@ -117,20 +117,24 @@ describe('Profiles', () => {
         assert.equal(config.profiles.empty, undefined, 'must not save an empty profile');
     });
 
-    it('--save-profile without a name fails instead of running the tool', async () => {
-        const { stdout, stderr, code } = await runCli(['--since', '1 month ago', '--save-profile'], tmpDir);
+    it('--save-profile without a name saves the "default" profile instead of running the tool', async () => {
+        const { stdout, code } = await runCli(['--since', '1 month ago', '--save-profile'], tmpDir);
 
-        assert.notEqual(code, 0);
-        assert.ok(stderr.includes('--save-profile needs a profile name'), `should explain, got:\n${stderr}`);
-        assert.ok(!stdout.includes('Fetching remotes'), 'must not start the cherry-pick flow');
+        assert.equal(code, 0, stdout);
+        assert.equal(stdout.trim(), '✓ Profile "default" saved in .cherrypickrc.json');
+        const rcPath = join(tmpDir, '.cherrypickrc.json');
+        const config = JSON.parse(await readFile(rcPath, 'utf8'));
+        assert.deepEqual(config.profiles.default, { since: '1 month ago' });
     });
 
-    it('--profile without a name fails instead of being ignored', async () => {
-        const { stdout, stderr, code } = await runCli(['--profile'], tmpDir);
+    it('--profile without a name loads the "default" profile', async () => {
+        await runCli(['--save-profile', '--dev', 'HEAD', '--main', 'HEAD', '--no-fetch'], tmpDir);
 
-        assert.notEqual(code, 0);
-        assert.ok(stderr.includes('--profile needs a profile name'), `should explain, got:\n${stderr}`);
-        assert.ok(!stdout.includes('Fetching remotes'), 'must not start the cherry-pick flow');
+        const { stdout, code } = await runCli(['--profile', '--dry-run'], tmpDir);
+
+        assert.equal(code, 0, stdout);
+        assert.ok(stdout.includes('Dev:  HEAD'), `should use the default profile, got:\n${stdout}`);
+        assert.ok(!stdout.includes('Fetching remotes'), 'should honour the saved --no-fetch');
     });
 
     it('--save-profile does nothing else: no fetch, no git changes', async () => {

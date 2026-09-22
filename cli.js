@@ -210,12 +210,12 @@ const argv = yargs(hideBin(process.argv))
     // ── Profile options ──
     .option('profile', {
         type: 'string',
-        describe: 'Load a named profile from .cherrypickrc.json.',
+        describe: 'Load a named profile from .cherrypickrc.json (no name: "default").',
         group: 'Profile options:',
     })
     .option('save-profile', {
         type: 'string',
-        describe: 'Save the flags passed on the command line as a named profile and exit.',
+        describe: 'Save the flags passed on the command line as a named profile and exit (no name: "default").',
         group: 'Profile options:',
     })
     .option('list-profiles', {
@@ -870,13 +870,11 @@ async function loadProfile(name) {
     return profiles[name];
 }
 
-// A bare `--save-profile` / `--profile` parses as '', which is falsy and would silently run the whole tool.
-function requireProfileName(flag) {
-    const name = String(argv[flag]).trim();
-    if (!name) {
-        throw new Error(`--${flag} needs a profile name, e.g. --${flag} release`);
-    }
-    return name;
+const DEFAULT_PROFILE = 'default';
+
+// A bare `--save-profile` / `--profile` parses as '', which is falsy and would otherwise run the tool without the profile.
+function profileNameOrDefault(flag) {
+    return String(argv[flag]).trim() || DEFAULT_PROFILE;
 }
 
 async function saveProfile(name, flags) {
@@ -1160,12 +1158,12 @@ async function main() {
         }
 
         if (argv['save-profile'] !== undefined) {
-            await saveProfile(requireProfileName('save-profile'), argv);
+            await saveProfile(profileNameOrDefault('save-profile'), argv);
             return;
         }
 
         if (argv['profile'] !== undefined) {
-            const profile = await loadProfile(requireProfileName('profile'));
+            const profile = await loadProfile(profileNameOrDefault('profile'));
             applyProfile(profile, argv);
         }
 
