@@ -6,6 +6,6 @@
   "features": ["skills"],
   "sources": [
     // Bumped automatically by agentbase's sync workflow. Do not edit by hand.
-    { "source": "sulhadin/agentbase", "ref": "v0.2.0", "skills": ["*"] }
+    { "source": "sulhadin/agentbase", "ref": "v0.3.0", "skills": ["*"] }
   ]
 }

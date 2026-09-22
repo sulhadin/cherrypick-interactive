@@ -2,15 +2,18 @@
   "lockfileVersion": 1,
   "sources": {
     "sulhadin/agentbase": {
-      "requestedRef": "v0.2.0",
-      "resolvedRef": "d08050fe182cd90b66d030eeed4dad5262e88877",
-      "resolvedAt": "2026-09-22T22:44:47.393Z",
+      "requestedRef": "v0.3.0",
+      "resolvedRef": "4bff2e0e25bf387109e49a4640f49b8a8428b106",
+      "resolvedAt": "2026-09-22T22:50:11.259Z",
       "skills": {
         "coding-standards": {
           "integrity": "sha256-9296426f61689a9365265ddee2c9e76741d15ae8948c1cc57ed13738162f451f"
         },
+        "conventional-commits": {
+          "integrity": "sha256-0da2139b6c486e8ff74cbb13e2c6ee63fd8b38d69597ae289a0e3bb70fd2dd2b"
+        },
         "pr-conventions": {
-          "integrity": "sha256-95c4f8f542880b731d89b92d21b0c12e626e6ceb06183bf4969861de9c56b197"
+          "integrity": "sha256-c8b03eed7ca9c6301330b4cd016ef816c608b90af858512de7b019a8ebfc5c49"
         }
       },
       "skillSelection": [
