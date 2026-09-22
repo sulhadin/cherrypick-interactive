@@ -117,6 +117,26 @@ describe('Profiles', () => {
         assert.equal(config.profiles.empty, undefined, 'must not save an empty profile');
     });
 
+    it('--save-profile without a name saves the "default" profile instead of running the tool', async () => {
+        const { stdout, code } = await runCli(['--since', '1 month ago', '--save-profile'], tmpDir);
+
+        assert.equal(code, 0, stdout);
+        assert.equal(stdout.trim(), '✓ Profile "default" saved in .cherrypickrc.json');
+        const rcPath = join(tmpDir, '.cherrypickrc.json');
+        const config = JSON.parse(await readFile(rcPath, 'utf8'));
+        assert.deepEqual(config.profiles.default, { since: '1 month ago' });
+    });
+
+    it('--profile without a name loads the "default" profile', async () => {
+        await runCli(['--save-profile', '--dev', 'HEAD', '--main', 'HEAD', '--no-fetch'], tmpDir);
+
+        const { stdout, code } = await runCli(['--profile', '--dry-run'], tmpDir);
+
+        assert.equal(code, 0, stdout);
+        assert.ok(stdout.includes('Dev:  HEAD'), `should use the default profile, got:\n${stdout}`);
+        assert.ok(!stdout.includes('Fetching remotes'), 'should honour the saved --no-fetch');
+    });
+
     it('--save-profile does nothing else: no fetch, no git changes', async () => {
         const git = (...args) => exec('git', args, { cwd: tmpDir }).then((r) => r.stdout);
         const before = [await git('rev-parse', 'HEAD'), await git('branch', '-a')];

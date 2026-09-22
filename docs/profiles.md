@@ -14,6 +14,10 @@ cherrypick-interactive --profile hotfix
 # Override a single flag from the profile
 cherrypick-interactive --profile hotfix --since "3 days ago"
 
+# Without a name, both flags use the "default" profile
+cherrypick-interactive --save-profile --since "1 month ago"
+cherrypick-interactive --profile
+
 # List all available profiles
 cherrypick-interactive --list-profiles
 ```
