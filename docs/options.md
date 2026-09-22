@@ -19,7 +19,7 @@ Complete reference for all CLI flags. Run `cherrypick-interactive --help` to see
 |------|--------------|----------|
 | `--semantic-versioning` | Detect semantic version bump from commits | `true` |
 | `--current-version` | Current version (if not reading from file) | — |
-| `--version-file` | Path to `package.json` (to read & update version) | `./package.json` |
+| `--version-file` | Path to `package.json`; the current version is read from it as committed on `--main`, then updated on the release branch | `./package.json` |
 | `--version-commit-message` | Template for version bump commit. Use `{{version}}` placeholder. | `chore(release): bump version to {{version}}` |
 | `--ignore-semver` | Comma-separated regex patterns to ignore for semver | — |
 

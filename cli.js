@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { promises as fsPromises, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
@@ -116,7 +116,7 @@ const argv = yargs(hideBin(process.argv))
     .option('version-file', {
         type: 'string',
         default: './package.json',
-        describe: 'Path to package.json (read current version; optional replacement for --current-version)',
+        describe: 'Path to package.json; the current version is read from it as committed on --main (optional replacement for --current-version).',
         group: 'Version options:',
     })
     .option('version-commit-message', {
@@ -1301,7 +1301,7 @@ async function main() {
 
         // ── Version computation (moved before preview) ──
         if (argv['version-file'] && !argv['current-version']) {
-            const currentVersionFromPkg = await getPkgVersion(argv['version-file']);
+            const currentVersionFromPkg = await getPkgVersion(argv['version-file'], argv.main);
             argv['current-version'] = currentVersionFromPkg;
         }
 
@@ -1656,29 +1656,44 @@ async function writeJson(filePath, data) {
     await fsPromises.writeFile(filePath, text, 'utf8');
 }
 
-/** Read package.json version; prompt to create file with 0.0.0 if it does not exist */
-async function getPkgVersion(pkgPath) {
-    let pkg = await readJson(pkgPath);
-    if (!pkg) {
-        log(chalk.yellow(`⚠ ${pkgPath} not found.`));
-        const { shouldCreate } = await prompt([
+/**
+ * Read the version from the file as committed on `ref`, not from the working tree: the release branch
+ * is cut from `ref`, and a stale checkout (e.g. dev, or an unpulled main) would bump an old version.
+ */
+async function getPkgVersion(pkgPath, ref) {
+    const repoPath = relative(await getRepoRoot(), resolve(pkgPath)).split(sep).join('/');
+    const spec = `${ref}:${repoPath}`;
+
+    const existsOnRef = await git
+        .raw(['cat-file', '-e', spec])
+        .then(() => true)
+        .catch(() => false);
+
+    if (!existsOnRef) {
+        log(chalk.yellow(`⚠ ${repoPath} not found on ${ref}.`));
+        const { shouldStartFromZero } = await prompt([
             {
                 type: 'confirm',
-                name: 'shouldCreate',
-                message: `Create ${pkgPath} with version 0.0.0?`,
+                name: 'shouldStartFromZero',
+                message: `Start versioning from 0.0.0? (${repoPath} will be created on the release branch)`,
                 default: true,
             },
         ]);
-        if (!shouldCreate) {
-            throw new Error(`Version file ${pkgPath} does not exist. Aborting.`);
+        if (!shouldStartFromZero) {
+            throw new Error(`Version file ${repoPath} does not exist on ${ref}. Aborting.`);
         }
-        pkg = { "version": "0.0.0" };
-        await writeJson(pkgPath, pkg);
-        log(chalk.green(`✓ Created ${pkgPath} with version 0.0.0`));
+        return '0.0.0';
+    }
+
+    let pkg;
+    try {
+        pkg = JSON.parse(await gitRaw(['show', spec]));
+    } catch (e) {
+        throw new Error(`Could not parse ${repoPath} on ${ref}: ${e.message}`);
     }
     const v = pkg.version;
     if (!v) {
-        throw new Error(`No "version" field found in ${pkgPath}`);
+        throw new Error(`No "version" field found in ${repoPath} on ${ref}`);
     }
     return v;
 }

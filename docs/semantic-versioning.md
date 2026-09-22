@@ -25,7 +25,7 @@ This is useful for dependency bumps, merge commits, or other commits that should
 ## Version Sources
 
 The current version can be read from:
-- `--version-file ./package.json` (default) — reads and updates the `version` field
+- `--version-file ./package.json` (default) — reads the `version` field from `--main` (not your working tree, so a stale checkout cannot bump an old version) and updates it on the release branch
 - `--current-version 1.2.3` — explicit version, no file read
 
 If the version file doesn't exist, the tool will prompt to create one with version `0.0.0`.
