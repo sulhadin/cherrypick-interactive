@@ -82,10 +82,11 @@ const argv = yargs(hideBin(process.argv))
         describe: 'Time window passed to git --since (e.g. "2 weeks ago", "1 month ago").',
         group: 'Cherry-pick options:',
     })
-    .option('no-fetch', {
+    // Named positively because yargs parses --no-fetch as fetch=false, so an option named 'no-fetch' is never set.
+    .option('fetch', {
         type: 'boolean',
-        default: false,
-        describe: "Skip 'git fetch --prune'.",
+        default: true,
+        describe: "Run 'git fetch --prune' first (--no-fetch to skip).",
         group: 'Cherry-pick options:',
     })
     .option('all-yes', {
@@ -218,10 +219,10 @@ const argv = yargs(hideBin(process.argv))
     })
 
     // ── UI options ──
-    .option('no-tui', {
+    .option('tui', {
         type: 'boolean',
-        default: false,
-        describe: 'Disable TUI dashboard, use simple inquirer checkbox instead.',
+        default: true,
+        describe: 'Use the TUI dashboard (--no-tui for the simple inquirer checkbox).',
         group: 'UI options:',
     })
     .option('dry-run', {
@@ -827,11 +828,11 @@ const RC_FILENAME = '.cherrypickrc.json';
 
 /** Allowlist of flags that can be saved in a profile */
 const SAVEABLE_FLAGS = new Set([
-    'dev', 'main', 'since', 'no-fetch', 'all-yes', 'ignore-commits',
+    'dev', 'main', 'since', 'fetch', 'all-yes', 'ignore-commits',
     'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver',
     'create-release', 'push-release', 'draft-pr', 'dry-run',
     'tracker', 'ticket-pattern', 'tracker-url',
-    'no-tui',
+    'tui',
 ]);
 
 async function getRepoRoot() {
@@ -917,13 +918,29 @@ async function listProfiles() {
     log('');
 }
 
-function applyProfile(profile, currentArgv) {
+// Profiles saved before 'fetch'/'tui' were renamed still carry the negated keys, which nothing reads anymore.
+const LEGACY_NEGATED_FLAGS = { 'no-fetch': 'fetch', 'no-tui': 'tui' };
+
+function normalizeProfile(profile) {
+    const normalized = {};
     for (const [key, value] of Object.entries(profile)) {
+        if (key in LEGACY_NEGATED_FLAGS) {
+            const positiveKey = LEGACY_NEGATED_FLAGS[key];
+            if (!(positiveKey in profile)) normalized[positiveKey] = !value;
+        } else {
+            normalized[key] = value;
+        }
+    }
+    return normalized;
+}
+
+function applyProfile(profile, currentArgv) {
+    for (const [key, value] of Object.entries(normalizeProfile(profile))) {
         // CLI flags (explicit) override profile values.
         // yargs sets properties from defaults — we detect explicit CLI flags
         // by checking if the key is in the raw process.argv
-        const cliFlag = `--${key}`;
-        const wasExplicit = process.argv.some((a) => a === cliFlag || a.startsWith(`${cliFlag}=`));
+        const cliFlags = [`--${key}`, `--no-${key}`];
+        const wasExplicit = process.argv.some((a) => cliFlags.some((f) => a === f || a.startsWith(`${f}=`)));
         if (!wasExplicit) {
             currentArgv[key] = value;
             // Also set camelCase version for yargs compatibility
@@ -940,7 +957,7 @@ const MIN_TUI_COLS = 60;
 
 function shouldUseTui() {
     // Explicit opt-out
-    if (argv['no-tui'] || argv.noTui) return false;
+    if (!argv.tui) return false;
     // CI mode or all-yes: no interactive UI needed
     if (argv.ci || argv['all-yes']) return false;
     // Non-interactive terminal
@@ -1187,7 +1204,7 @@ async function main() {
             }
         }
 
-        if (!argv['no-fetch']) {
+        if (argv.fetch) {
             log(chalk.gray('Fetching remotes (git fetch --prune)...'));
             await git.fetch(['--prune']);
         }

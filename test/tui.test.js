@@ -109,6 +109,6 @@ describe('TUI fallback detection', () => {
 
     it('--no-tui disables TUI', async () => {
         const source = await readFile(CLI, 'utf8');
-        assert.ok(source.includes("argv['no-tui']"), 'should check --no-tui flag');
+        assert.ok(source.includes('!argv.tui'), 'should check --no-tui flag');
     });
 });
