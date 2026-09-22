@@ -1,0 +1,21 @@
+{
+  "lockfileVersion": 1,
+  "sources": {
+    "sulhadin/agentbase": {
+      "requestedRef": "v0.1.1",
+      "resolvedRef": "e2a4ab77555201cc17fe073723ee0b1e009a38df",
+      "resolvedAt": "2026-09-22T22:28:47.689Z",
+      "skills": {
+        "coding-standards": {
+          "integrity": "sha256-9296426f61689a9365265ddee2c9e76741d15ae8948c1cc57ed13738162f451f"
+        },
+        "pr-conventions": {
+          "integrity": "sha256-95c4f8f542880b731d89b92d21b0c12e626e6ceb06183bf4969861de9c56b197"
+        }
+      },
+      "skillSelection": [
+        "*"
+      ]
+    }
+  }
+}

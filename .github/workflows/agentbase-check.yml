@@ -1,0 +1,23 @@
+# Copy to .github/workflows/agentbase-check.yml in the consumer repo.
+name: agentbase check
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Regenerate from lockfile and fail on drift
+        env:
+          GITHUB_TOKEN: ${{ secrets.AGENTBASE_READ_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          npx rulesync@16 install --frozen
+          npx rulesync@16 generate
+          git diff --exit-code || {
+            echo "::error::Generated AI config is out of date or was hand-edited. Run: npx rulesync install --frozen && npx rulesync generate"
+            exit 1
+          }
