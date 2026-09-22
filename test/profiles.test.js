@@ -89,6 +89,34 @@ describe('Profiles', () => {
         assert.equal(saved.version, undefined, 'version should not be persisted');
     });
 
+    it('--save-profile saves only the flags passed on the command line', async () => {
+        await runCli(['--save-profile', 'explicit-only', '--since', '3 days ago', '--no-fetch'], tmpDir);
+
+        const rcPath = join(tmpDir, '.cherrypickrc.json');
+        const config = JSON.parse(await readFile(rcPath, 'utf8'));
+        assert.deepEqual(config.profiles['explicit-only'], { since: '3 days ago', fetch: false });
+    });
+
+    it('--save-profile overwrites an existing profile without prompting', async () => {
+        const { stdout, code } = await runCli(['--save-profile', 'explicit-only', '--dev', 'origin/next'], tmpDir);
+
+        assert.equal(code, 0);
+        assert.ok(stdout.includes('Profile "explicit-only" updated'), 'should confirm the update');
+        const rcPath = join(tmpDir, '.cherrypickrc.json');
+        const config = JSON.parse(await readFile(rcPath, 'utf8'));
+        assert.deepEqual(config.profiles['explicit-only'], { dev: 'origin/next' });
+    });
+
+    it('--save-profile without any flags to save fails', async () => {
+        const { stderr, code } = await runCli(['--save-profile', 'empty'], tmpDir);
+
+        assert.notEqual(code, 0);
+        assert.ok(stderr.includes('No flags to save'), `should explain, got:\n${stderr}`);
+        const rcPath = join(tmpDir, '.cherrypickrc.json');
+        const config = JSON.parse(await readFile(rcPath, 'utf8'));
+        assert.equal(config.profiles.empty, undefined, 'must not save an empty profile');
+    });
+
     it('--list-profiles shows saved profiles', async () => {
         const { stdout } = await runCli(['--list-profiles'], tmpDir);
         assert.ok(stdout.includes('test-profile'), 'should list test-profile');

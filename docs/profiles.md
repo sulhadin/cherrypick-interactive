@@ -5,7 +5,7 @@ Save and reuse CLI flag combinations so you don't have to type long commands eve
 ## Usage
 
 ```bash
-# Save current flags as a profile
+# Save the flags you pass as a profile (saves and exits, nothing else runs)
 cherrypick-interactive --save-profile hotfix --dev origin/develop --main origin/release --since "2 weeks ago"
 
 # Load a saved profile
@@ -56,9 +56,11 @@ When a profile is loaded, values are merged with this priority (lowest to highes
 
 CLI flags always win over profile values.
 
-## Overwrite Protection
+## Saving
 
-When saving to an existing profile name, you'll be prompted to confirm before overwriting.
+`--save-profile <name>` writes only the flags you pass on the command line; defaults are not stored, so a profile picks up the tool's current defaults when loaded. It then prints `✓ Profile "<name>" saved` and exits without fetching or cherry-picking.
+
+Saving to an existing name replaces that profile without prompting (the message says `updated`). Running `--save-profile <name>` with no flags to save is an error.
 
 ## Security
 

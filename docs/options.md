@@ -59,7 +59,7 @@ See [Tracker Integration](tracker-integration.md) for presets and custom pattern
 | Flag | Description | Default |
 |------|--------------|----------|
 | `--profile` | Load a named profile from `.cherrypickrc.json` | — |
-| `--save-profile` | Save current CLI flags as a named profile | — |
+| `--save-profile` | Save the flags passed on the command line as a named profile and exit | — |
 | `--list-profiles` | List available profiles and exit | `false` |
 
 See [Profiles](profiles.md) for config file format and CI usage.
