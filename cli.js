@@ -870,6 +870,15 @@ async function loadProfile(name) {
     return profiles[name];
 }
 
+// A bare `--save-profile` / `--profile` parses as '', which is falsy and would silently run the whole tool.
+function requireProfileName(flag) {
+    const name = String(argv[flag]).trim();
+    if (!name) {
+        throw new Error(`--${flag} needs a profile name, e.g. --${flag} release`);
+    }
+    return name;
+}
+
 async function saveProfile(name, flags) {
     const toSave = {};
     for (const [key, value] of Object.entries(flags)) {
@@ -1150,14 +1159,13 @@ async function main() {
             return;
         }
 
-        if (argv['save-profile']) {
-            const name = argv['save-profile'];
-            await saveProfile(name, argv);
+        if (argv['save-profile'] !== undefined) {
+            await saveProfile(requireProfileName('save-profile'), argv);
             return;
         }
 
-        if (argv['profile']) {
-            const profile = await loadProfile(argv['profile']);
+        if (argv['profile'] !== undefined) {
+            const profile = await loadProfile(requireProfileName('profile'));
             applyProfile(profile, argv);
         }
 

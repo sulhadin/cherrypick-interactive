@@ -117,6 +117,22 @@ describe('Profiles', () => {
         assert.equal(config.profiles.empty, undefined, 'must not save an empty profile');
     });
 
+    it('--save-profile without a name fails instead of running the tool', async () => {
+        const { stdout, stderr, code } = await runCli(['--since', '1 month ago', '--save-profile'], tmpDir);
+
+        assert.notEqual(code, 0);
+        assert.ok(stderr.includes('--save-profile needs a profile name'), `should explain, got:\n${stderr}`);
+        assert.ok(!stdout.includes('Fetching remotes'), 'must not start the cherry-pick flow');
+    });
+
+    it('--profile without a name fails instead of being ignored', async () => {
+        const { stdout, stderr, code } = await runCli(['--profile'], tmpDir);
+
+        assert.notEqual(code, 0);
+        assert.ok(stderr.includes('--profile needs a profile name'), `should explain, got:\n${stderr}`);
+        assert.ok(!stdout.includes('Fetching remotes'), 'must not start the cherry-pick flow');
+    });
+
     it('--save-profile does nothing else: no fetch, no git changes', async () => {
         const git = (...args) => exec('git', args, { cwd: tmpDir }).then((r) => r.stdout);
         const before = [await git('rev-parse', 'HEAD'), await git('branch', '-a')];
