@@ -27,7 +27,14 @@ const notifier = updateNotifier({
 
 // Only print if a *real* newer version exists
 const upd = notifier.update;
-if (upd && semver.valid(upd.latest) && semver.valid(pkg.version) && semver.gt(upd.latest, pkg.version)) {
+const isSavingProfile = process.argv.some((a) => a === '--save-profile' || a.startsWith('--save-profile='));
+if (
+    !isSavingProfile &&
+    upd &&
+    semver.valid(upd.latest) &&
+    semver.valid(pkg.version) &&
+    semver.gt(upd.latest, pkg.version)
+) {
     const name = pkg.name || 'cherrypick-interactive';
     console.log('');
     console.log(chalk.yellow('⚠️  A new version is available'));
@@ -208,7 +215,7 @@ const argv = yargs(hideBin(process.argv))
     })
     .option('save-profile', {
         type: 'string',
-        describe: 'Save current CLI flags as a named profile.',
+        describe: 'Save the flags passed on the command line as a named profile and exit.',
         group: 'Profile options:',
     })
     .option('list-profiles', {
@@ -864,37 +871,23 @@ async function loadProfile(name) {
 }
 
 async function saveProfile(name, flags) {
+    const toSave = {};
+    for (const [key, value] of Object.entries(flags)) {
+        if (SAVEABLE_FLAGS.has(key) && wasPassedOnCli(key)) {
+            toSave[key] = value;
+        }
+    }
+    if (Object.keys(toSave).length === 0) {
+        throw new Error(`No flags to save. Pass the flags for profile "${name}", e.g. --save-profile ${name} --dev origin/dev`);
+    }
+
     const config = await loadRcConfig();
     config.profiles = config.profiles || {};
-
-    if (config.profiles[name]) {
-        const { overwrite } = await prompt([
-            {
-                type: 'confirm',
-                name: 'overwrite',
-                message: `Profile "${name}" already exists. Overwrite?`,
-                default: false,
-            },
-        ]);
-        if (!overwrite) {
-            log(chalk.yellow('Aborted — profile not saved.'));
-            return false;
-        }
-    }
-
-    const filtered = {};
-    for (const [key, value] of Object.entries(flags)) {
-        if (SAVEABLE_FLAGS.has(key)) {
-            filtered[key] = value;
-        }
-    }
-
-    config.profiles[name] = filtered;
+    const existed = Boolean(config.profiles[name]);
+    config.profiles[name] = toSave;
     await saveRcConfig(config);
 
-    log(chalk.green(`\n✓ Profile "${name}" saved to ${RC_FILENAME}:`));
-    log(JSON.stringify(filtered, null, 2));
-    return true;
+    log(chalk.green(`✓ Profile "${name}" ${existed ? 'updated' : 'saved'} in ${RC_FILENAME}`));
 }
 
 async function listProfiles() {
@@ -934,14 +927,15 @@ function normalizeProfile(profile) {
     return normalized;
 }
 
+// yargs fills every option with its default, so only the raw argv tells an explicit flag apart from a default.
+function wasPassedOnCli(key) {
+    const cliFlags = [`--${key}`, `--no-${key}`];
+    return process.argv.some((a) => cliFlags.some((f) => a === f || a.startsWith(`${f}=`)));
+}
+
 function applyProfile(profile, currentArgv) {
     for (const [key, value] of Object.entries(normalizeProfile(profile))) {
-        // CLI flags (explicit) override profile values.
-        // yargs sets properties from defaults — we detect explicit CLI flags
-        // by checking if the key is in the raw process.argv
-        const cliFlags = [`--${key}`, `--no-${key}`];
-        const wasExplicit = process.argv.some((a) => cliFlags.some((f) => a === f || a.startsWith(`${f}=`)));
-        if (!wasExplicit) {
+        if (!wasPassedOnCli(key)) {
             currentArgv[key] = value;
             // Also set camelCase version for yargs compatibility
             const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
