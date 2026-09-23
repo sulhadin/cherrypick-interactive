@@ -62,8 +62,9 @@ jobs:
           # Check for feat (minor)
           elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
             BUMP="minor"
-          # Check for fix, refactor, perf, etc. (patch)
-          elif echo "$COMMITS" | grep -qE "^(fix|refactor|perf|chore|docs|style|test|ci)(\(.+\))?:"; then
+          # Only changes users of the package can notice are released; chore, docs, ci and friends
+          # (e.g. agentbase's sync PRs) would otherwise publish an identical package.
+          elif echo "$COMMITS" | grep -qE "^(fix|perf|revert)(\(.+\))?:"; then
             BUMP="patch"
           fi
 
