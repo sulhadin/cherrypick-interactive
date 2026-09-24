@@ -16,7 +16,7 @@ pids
 *.pid.lock
 .idea
 .vscode
-# agentbase commits Claude Code's generated skills, agents, commands and settings; the rest of .claude/ stays local.
+# agentspread commits Claude Code's generated skills, agents, commands and settings; the rest of .claude/ stays local.
 .claude/*
 !.claude/skills/
 !.claude/agents/
@@ -145,6 +145,3 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-# agentbase: fetched shared content lives here; generated tool files are committed on purpose
-.rulesync/rules/.curated/
-.rulesync/skills/.curated/

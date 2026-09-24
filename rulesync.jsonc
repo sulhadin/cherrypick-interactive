@@ -4,8 +4,5 @@
   // With "rules" enabled and several targets writing AGENTS.md, the last target wins — keep codexcli last.
   "targets": ["claudecode", "codexcli", "copilot", "opencode", "cline", "roo", "kiro", "junie", "warp", "qwencode", "augmentcode"],
   "features": ["skills", "subagents", "commands"],
-  "inputRoots": [".agentspread", ".rulesync"],
-  "sources": [
-    // Bumped automatically by agentbase's sync workflow. Do not edit by hand.
-  ]
+  "inputRoots": [".agentspread", ".rulesync"]
 }
