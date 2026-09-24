@@ -7,4 +7,4 @@ description: >-
 1. Derive the ClickUp id from the branch name: `CU-([A-Za-z0-9]+)` first, else the first bare `[0-9][a-z0-9]{6,}` token; `0` if none.
 2. Title: `#<id> - <imperative summary>`.
 3. Body: follow `.github/pull_request_template.md` when present (`## Changelog`, `## Description`, optional `## Before merge`).
-4. End the body with the ClickUp id on its own line.
+4. The ClickUp id lives in the title only; never repeat it in the body.
