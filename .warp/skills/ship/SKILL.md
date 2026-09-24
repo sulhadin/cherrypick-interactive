@@ -1,0 +1,5 @@
+---
+name: ship
+description: 'Lint, commit, push and open a PR following org conventions'
+---
+Run the repo's lint script, commit the staged work with a message that explains why, push the branch, and open a pull request that follows the `pr-conventions` skill.
