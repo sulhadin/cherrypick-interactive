@@ -1,0 +1,34 @@
+# Copy to .github/workflows/agentspread-check.yml in the consumer repo.
+name: agentspread check
+on: [pull_request, push]
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v7
+        # npx needs no install, and v5+ auto-caching fails when a packageManager field has no lockfile.
+        with: { node-version: 22, package-manager-cache: false }
+      - name: Regenerate from .agentspread/ and .rulesync/, fail on drift
+        env:
+          # A project .npmrc must not be able to swap the package that runs here.
+          npm_config_registry: https://registry.npmjs.org/
+        run: |
+          # Only sources of this repo's own need the lockfile; agentspread's content is committed.
+          [ ! -f rulesync.lock ] || npx --yes rulesync@16 install --frozen
+          npx --yes rulesync@16 generate --delete
+          # --intent-to-add makes generated files that were never committed show up in the diff.
+          git add --all --intent-to-add .
+          git diff --exit-code || {
+            echo "::error::Generated agent files are out of date or were hand-edited. Run: npx rulesync generate --delete"
+            exit 1
+          }
+      - name: Fail if .gitignore hides generated files
+        run: |
+          ignored=$(git ls-files --others --ignored --exclude-standard -- .agentspread .claude .agents .codex .github \
+            .cursor .opencode .cline .roo .kiro .junie .warp .qwen .augment | grep -v '\.local\.' || true)
+          [ -z "$ignored" ] || {
+            echo "::error::.gitignore hides generated files, so they are never committed: $(echo "$ignored" | paste -sd' ' -)"
+            exit 1
+          }
