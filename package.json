@@ -44,7 +44,14 @@
     "git",
     "cli",
     "cherry-pick",
+    "cherrypick",
     "interactive",
+    "tui",
+    "branch-sync",
+    "release",
+    "semver",
+    "conventional-commits",
+    "changelog",
     "devops"
   ],
   "repository": {
