@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 
 const exec = promisify(execFile);
@@ -206,48 +206,5 @@ describe('Profiles', () => {
         // Other top-level keys should not be profile names
         const topKeys = Object.keys(config);
         assert.ok(!topKeys.includes('test-profile'), 'profile names should not be top-level keys');
-    });
-});
-
-describe('--save-profile and the update check', () => {
-    let tmpDir;
-    let configHome;
-    let env;
-
-    // update-notifier reads the "update" entry from its configstore cache and deletes it once shown.
-    async function seedPendingUpdate() {
-        const storeDir = join(configHome, 'configstore');
-        await mkdir(storeDir, { recursive: true });
-        await writeFile(
-            join(storeDir, 'update-notifier-cherrypick-interactive.json'),
-            JSON.stringify({ optOut: false, lastUpdateCheck: Date.now(), update: { latest: '99.0.0' } }),
-        );
-    }
-
-    before(async () => {
-        tmpDir = await mkdtemp(join(tmpdir(), 'cherrypick-update-'));
-        configHome = await mkdtemp(join(tmpdir(), 'cherrypick-xdg-'));
-        await exec('git', ['init', '-q'], { cwd: tmpDir });
-        // update-notifier disables itself under CI, CONTINUOUS_INTEGRATION or NODE_ENV=test.
-        env = { ...process.env, XDG_CONFIG_HOME: configHome, CI: '0', CONTINUOUS_INTEGRATION: '0', NODE_ENV: '' };
-        delete env.NO_UPDATE_NOTIFIER;
-    });
-
-    after(async () => {
-        await rm(tmpDir, { recursive: true, force: true });
-        await rm(configHome, { recursive: true, force: true });
-    });
-
-    it('shows the update notice on other commands', async () => {
-        await seedPendingUpdate();
-        const { stdout } = await runCli(['--list-profiles'], tmpDir, env);
-        assert.ok(stdout.includes('A new version is available'), `the fake update should be picked up, got:\n${stdout}`);
-    });
-
-    it('skips the update notice when saving a profile', async () => {
-        await seedPendingUpdate();
-        const { stdout } = await runCli(['--save-profile', 'p', '--dev', 'origin/dev'], tmpDir, env);
-        assert.ok(!stdout.includes('A new version is available'), `got:\n${stdout}`);
-        assert.equal(stdout.trim(), '✓ Profile "p" saved in .cherrypickrc.json');
     });
 });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { promises as fsPromises, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -9,9 +9,9 @@ import inquirer from 'inquirer';
 import semver from 'semver';
 import simpleGit from 'simple-git';
 import isSafeRegex from 'safe-regex2';
-import updateNotifier from 'update-notifier';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { checkForUpdate, fetchLatestVersion } from './src/update-check.js';
 
 const git = simpleGit();
 
@@ -20,50 +20,61 @@ const __dirname = dirname(__filename);
 
 const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'));
 
-const notifier = updateNotifier({
-    pkg,
-    updateCheckInterval: 1000 * 60 * 60, // 1 hour
-});
-
-// Only print if a *real* newer version exists
-const upd = notifier.update;
 const isSavingProfile = process.argv.some((a) => a === '--save-profile' || a.startsWith('--save-profile='));
-if (
-    !isSavingProfile &&
-    upd &&
-    semver.valid(upd.latest) &&
-    semver.valid(pkg.version) &&
-    semver.gt(upd.latest, pkg.version)
-) {
-    const name = pkg.name || 'cherrypick-interactive';
-    console.log('');
-    console.log(chalk.yellow('⚠️  A new version is available'));
-    console.log(chalk.gray(`  ${name}: ${chalk.red(pkg.version)} → ${chalk.green(upd.latest)}`));
+const isEnvFlagOn = (key) => key in process.env && process.env[key] !== '0' && process.env[key] !== 'false';
+// The same opt-outs update-notifier honoured, plus --ci so a --format json run keeps stdout clean.
+const isUpdateCheckDisabled =
+    isSavingProfile ||
+    process.argv.includes('--ci') ||
+    process.argv.includes('--no-update-notifier') ||
+    'NO_UPDATE_NOTIFIER' in process.env ||
+    process.env.NODE_ENV === 'test' ||
+    isEnvFlagOn('CI') ||
+    isEnvFlagOn('CONTINUOUS_INTEGRATION');
 
-    // Skip interactive prompt in CI or non-TTY
-    if (process.stdout.isTTY && !process.env.CI) {
-        const { shouldUpdate } = await prompt([
-            {
-                type: 'confirm',
-                name: 'shouldUpdate',
-                message: `Update to ${upd.latest} now?`,
-                default: false,
-            },
-        ]);
-        if (shouldUpdate) {
-            const { execSync } = await import('node:child_process');
-            console.log(chalk.cyan(`\nUpdating ${name}...`));
-            try {
-                execSync(`npm i -g ${name}@${upd.latest}`, { stdio: 'inherit' });
-                console.log(chalk.green(`✓ Updated to ${upd.latest}. Please re-run the command.\n`));
-                process.exit(0);
-            } catch {
-                console.error(chalk.red('Update failed. Please update manually:'));
-                console.error(chalk.cyan(`  npm i -g ${name}\n`));
+if (!isUpdateCheckDisabled) {
+    const name = pkg.name;
+    const outcome = await checkForUpdate({
+        current: pkg.version,
+        fetchLatest: () => fetchLatestVersion(name, { registry: process.env.npm_config_registry }),
+        confirm: async (latest) => {
+            if (!process.stdout.isTTY || process.env.CI) {
+                console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
+                return false;
             }
-        }
-    } else {
-        console.log(chalk.cyan(`  Update with: ${chalk.bold(`npm i -g ${name}`)}\n`));
+            // prompt() cannot be used yet: its Ctrl+C path calls log(), which is declared further down.
+            try {
+                const { shouldUpdate } = await inquirer.prompt([
+                    { type: 'confirm', name: 'shouldUpdate', message: `Update to ${latest} now?`, default: false },
+                ]);
+                return shouldUpdate;
+            } catch (e) {
+                if (e.name === 'ExitPromptError') {
+                    process.exit(0);
+                }
+                throw e;
+            }
+        },
+        install: async (latest) => {
+            console.log(chalk.cyan(`\nUpdating ${name}...`));
+            execSync(`npm i -g ${name}@${latest}`, { stdio: 'inherit' });
+        },
+        log: {
+            notice: (current, latest) => {
+                console.log('');
+                console.log(chalk.yellow('⚠️  A new version is available'));
+                console.log(chalk.gray(`  ${name}: ${chalk.red(current)} → ${chalk.green(latest)}`));
+            },
+        },
+    });
+
+    if (outcome.status === 'updated') {
+        console.log(chalk.green(`✓ Updated to ${outcome.latest}. Please re-run the command.\n`));
+        process.exit(0);
+    }
+    if (outcome.status === 'failed') {
+        console.error(chalk.red('Update failed. Please update manually:'));
+        console.error(chalk.cyan(`  npm i -g ${name}\n`));
     }
 }
 
