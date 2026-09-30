@@ -139,6 +139,14 @@ const argv = yargs(hideBin(process.argv))
             'Comma-separated regex patterns. If a commit message matches any, it will be treated as a chore for semantic versioning.',
         group: 'Version options:',
     })
+    .option('other-bump', {
+        type: 'string',
+        default: 'none',
+        choices: ['patch', 'none'],
+        describe:
+            'Bump for commits that are not feat, fix, perf or breaking (chore, refactor, docs, ...). --ignore-semver matches never bump.',
+        group: 'Version options:',
+    })
 
     // ── Release options ──
     .option('create-release', {
@@ -802,7 +810,7 @@ function collapseBumps(levels) {
 }
 
 // Fetch full commit messages (%B) for SHAs and compute bump
-async function computeSemanticBumpForCommits(hashes, gitRawFn, semverignore) {
+async function computeSemanticBumpForCommits(hashes, gitRawFn, semverignore, otherBump) {
     if (!hashes.length) {
         return null;
     }
@@ -818,6 +826,8 @@ async function computeSemanticBumpForCommits(hashes, gitRawFn, semverignore) {
         // 🔹 Apply --semverignore (treat matched commits as chores). Use full message (subject + body).
         if (semverIgnorePatterns.length > 0 && matchesAnyPattern(msg, semverIgnorePatterns)) {
             level = null;
+        } else if (!level && otherBump === 'patch') {
+            level = 'patch';
         }
 
         if (level) {
@@ -836,7 +846,7 @@ const RC_FILENAME = '.cherrypickrc.json';
 /** Allowlist of flags that can be saved in a profile */
 const SAVEABLE_FLAGS = new Set([
     'dev', 'main', 'since', 'fetch', 'all-yes', 'ignore-commits',
-    'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver',
+    'semantic-versioning', 'current-version', 'version-file', 'version-commit-message', 'ignore-semver', 'other-bump',
     'create-release', 'push-release', 'draft-pr', 'dry-run',
     'tracker', 'ticket-pattern', 'tracker-url',
     'tui',
@@ -1329,7 +1339,7 @@ async function main() {
                 throw new Error(' --semantic-versioning requires --current-version X.Y.Z (or pass --version-file)');
             }
 
-            detectedBump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore);
+            detectedBump = await computeSemanticBumpForCommits(bottomToTop, gitRaw, semverIgnore, argv['other-bump']);
             computedNextVersion = detectedBump ? incrementVersion(argv['current-version'], detectedBump) : argv['current-version'];
 
             log('');
@@ -1339,6 +1349,12 @@ async function main() {
                 `Detected bump: ${chalk.bold(detectedBump || 'none')}  ` +
                 `Next: ${chalk.bold(computedNextVersion)}`,
             );
+
+            if (!detectedBump && argv['create-release']) {
+                throw new Error(
+                    `No version bump detected from the selected commits, so release/${computedNextVersion} would reuse the current version. Pass --other-bump patch to release them as a patch, or --no-create-release to cherry-pick without a release.`,
+                );
+            }
         }
 
         // ── Changelog preview ──
@@ -1530,13 +1546,16 @@ async function ensureReleaseBranchFresh(branchName, startPoint) {
         return;
     }
 
+    const where = [localExists && 'locally', remoteExists && 'on origin'].filter(Boolean).join(' and ');
+    if (argv.ci) {
+        throw new Error(`Release branch "${branchName}" already exists ${where}. Delete it before running in CI.`);
+    }
+
     const { action } = await prompt([
         {
             type: 'select',
             name: 'action',
-            message: `Release branch "${branchName}" already exists${localExists ? ' locally' : ''}${
-                remoteExists ? ' on origin' : ''
-            }. How do you want to proceed? (override, abort)`,
+            message: `Release branch "${branchName}" already exists ${where}. How do you want to proceed? (override, abort)`,
             choices: [
                 { name: 'Override (delete existing branch and recreate)', value: 'override' },
                 { name: 'Abort', value: 'abort' },

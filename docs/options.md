@@ -22,6 +22,7 @@ Complete reference for all CLI flags. Run `cherrypick-interactive --help` to see
 | `--version-file` | Path to `package.json`; the current version is read from it as committed on `--main`, then updated on the release branch | `./package.json` |
 | `--version-commit-message` | Template for version bump commit. Use `{{version}}` placeholder. | `chore(release): bump version to {{version}}` |
 | `--ignore-semver` | Comma-separated regex patterns to ignore for semver | — |
+| `--other-bump` | Bump for commits that are not `feat`, `fix`, `perf` or breaking: `patch` or `none`. `--ignore-semver` matches never bump. | `none` |
 
 See [Semantic Versioning](semantic-versioning.md) for details.
 
