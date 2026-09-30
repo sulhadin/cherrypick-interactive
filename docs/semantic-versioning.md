@@ -22,6 +22,18 @@ cherrypick-interactive --ignore-semver "^chore\(deps\)|bump|merge"
 
 This is useful for dependency bumps, merge commits, or other commits that shouldn't affect the version.
 
+## Releasing Commits That Don't Bump
+
+Only `feat`, `fix`, `perf` and breaking changes bump the version. When every selected commit is something else (`chore`, `refactor`, `docs`, a non-conventional message, ...), there is no next version, so `--create-release` stops before cherry-picking instead of cutting a release under the current version.
+
+Count those commits as a patch:
+
+```bash
+cherrypick-interactive --other-bump patch
+```
+
+Commits matched by `--ignore-semver` still never bump, so you can exclude merge or release-bump commits while releasing the rest as a patch. To cherry-pick without cutting a release at all, pass `--no-create-release`.
+
 ## Version Sources
 
 The current version can be read from:
