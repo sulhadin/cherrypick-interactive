@@ -1720,6 +1720,12 @@ async function getPkgVersion(pkgPath, ref) {
         .catch(() => false);
 
     if (!existsOnRef) {
+        // The confirm below can't be answered in CI: inquirer aborts and the run exits 0 without releasing anything.
+        if (argv.ci) {
+            throw new Error(
+                `Version file ${repoPath} not found on ${ref}. Pass --version-file pointing at the file that holds the version.`,
+            );
+        }
         log(chalk.yellow(`⚠ ${repoPath} not found on ${ref}.`));
         const { shouldStartFromZero } = await prompt([
             {

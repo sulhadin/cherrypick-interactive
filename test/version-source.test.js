@@ -111,6 +111,17 @@ describe('current version source', () => {
         await cleanup();
     });
 
+    it('fails in CI when the --version-file is not on --main', async () => {
+        const { dir, cleanup } = await makeStaleCheckout();
+
+        const { output, code } = await runCli([...CI_ARGS, '--version-file', './version.json'], dir);
+        assert.equal(code, 3, `should exit with the CI error code, got:\n${output}`);
+        assert.ok(output.includes('Version file version.json not found on origin/main'), `got:\n${output}`);
+        assert.equal(await currentBranch(dir), 'dev', 'should not cut a release branch');
+
+        await cleanup();
+    });
+
     it('names --current-version as the source when it is passed', async () => {
         const { dir, cleanup } = await makeStaleCheckout();
 
