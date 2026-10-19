@@ -7,13 +7,15 @@ import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import semver from 'semver';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import isSafeRegex from 'safe-regex2';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { checkForUpdate, fetchLatestVersion } from './src/update-check.js';
 
-const git = simpleGit();
+// simple-git 4 hides GIT_*, EDITOR, SSH_ASKPASS, ... from git by default, which would drop the user's
+// GIT_COMMITTER_* identity in CI and their GIT_SSH_COMMAND / askpass auth for fetch and push.
+const git = simpleGit({ allowEnvironment: Object.keys(process.env) });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
