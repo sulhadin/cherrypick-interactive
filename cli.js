@@ -972,6 +972,16 @@ function applyProfile(profile, currentArgv) {
     }
 }
 
+function logProfile(name, profile) {
+    log(chalk.gray(`Profile: ${name}`));
+    for (const [key, value] of Object.entries(normalizeProfile(profile))) {
+        const line = wasPassedOnCli(key)
+            ? `${key}: ${argv[key]} (--${key} overrides the profile's ${value})`
+            : `${key}: ${value}`;
+        log(chalk.gray(`  ${line}`));
+    }
+}
+
 // ── TUI detection ──
 
 const MIN_TUI_ROWS = 15;
@@ -1184,8 +1194,10 @@ async function main() {
         }
 
         if (argv['profile'] !== undefined) {
-            const profile = await loadProfile(profileNameOrDefault('profile'));
+            const profileName = profileNameOrDefault('profile');
+            const profile = await loadProfile(profileName);
             applyProfile(profile, argv);
+            logProfile(profileName, profile);
         }
 
         // ── Tracker config (merge CLI flags with .cherrypickrc.json) ──

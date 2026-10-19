@@ -173,6 +173,21 @@ describe('Profiles', () => {
         assert.ok(!stdout.includes('Fetching remotes'), 'should honour the saved --no-fetch');
     });
 
+    it('--profile prints the profile name and the flags it applies', async () => {
+        await runCli(['--save-profile', 'shown', '--dev', 'HEAD', '--main', 'HEAD', '--no-fetch', '--since', '1 month ago'], tmpDir);
+
+        const { stdout, code } = await runCli(['--profile', 'shown', '--dry-run', '--since', '2 weeks ago'], tmpDir);
+
+        assert.equal(code, 0, stdout);
+        assert.ok(stdout.includes('Profile: shown'), `should name the profile, got:\n${stdout}`);
+        assert.ok(stdout.includes('  dev: HEAD'), `should list the saved --dev, got:\n${stdout}`);
+        assert.ok(stdout.includes('  fetch: false'), `should list the saved --no-fetch, got:\n${stdout}`);
+        assert.ok(
+            stdout.includes("  since: 2 weeks ago (--since overrides the profile's 1 month ago)"),
+            `should show the CLI flag winning over the profile, got:\n${stdout}`,
+        );
+    });
+
     it('--list-profiles shows saved profiles', async () => {
         const { stdout } = await runCli(['--list-profiles'], tmpDir);
         assert.ok(stdout.includes('test-profile'), 'should list test-profile');
