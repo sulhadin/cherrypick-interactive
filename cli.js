@@ -1298,7 +1298,7 @@ async function main() {
                         const missingHashes = [...new Set(deps.map((d) => d.dependency))];
                         const { choice } = await prompt([
                             {
-                                type: 'list',
+                                type: 'select',
                                 name: 'choice',
                                 message: 'Some selected commits depend on unselected commits (see above). How would you like to proceed?',
                                 choices: [
