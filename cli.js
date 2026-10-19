@@ -1338,9 +1338,11 @@ async function main() {
         }
 
         // ── Version computation (moved before preview) ──
+        let versionSource = '--current-version';
         if (argv['version-file'] && !argv['current-version']) {
-            const currentVersionFromPkg = await getPkgVersion(argv['version-file'], argv.main);
-            argv['current-version'] = currentVersionFromPkg;
+            const { version, source } = await getPkgVersion(argv['version-file'], argv.main);
+            argv['current-version'] = version;
+            versionSource = source;
         }
 
         let computedNextVersion = argv['current-version'];
@@ -1355,6 +1357,7 @@ async function main() {
 
             log('');
             log(chalk.magenta('Semantic Versioning'));
+            log(`  Source:  ${chalk.bold(versionSource)}`);
             log(
                 `  Current: ${chalk.bold(argv['current-version'])}  ` +
                 `Detected bump: ${chalk.bold(detectedBump || 'none')}  ` +
@@ -1466,7 +1469,7 @@ async function main() {
             const msg = argv['version-commit-message'].replace('{{version}}', computedNextVersion);
             await git.raw(['commit', '--no-verify', '-m', msg]);
 
-            log(chalk.green(`✓ package.json updated and committed: ${msg}`));
+            log(chalk.green(`✓ ${argv['version-file']} updated and committed: ${msg}`));
         }
 
         if (argv['create-release'] && argv['push-release']) {
@@ -1729,7 +1732,7 @@ async function getPkgVersion(pkgPath, ref) {
         if (!shouldStartFromZero) {
             throw new Error(`Version file ${repoPath} does not exist on ${ref}. Aborting.`);
         }
-        return '0.0.0';
+        return { version: '0.0.0', source: `${repoPath} (not on ${ref})` };
     }
 
     let pkg;
@@ -1742,7 +1745,7 @@ async function getPkgVersion(pkgPath, ref) {
     if (!v) {
         throw new Error(`No "version" field found in ${repoPath} on ${ref}`);
     }
-    return v;
+    return { version: v, source: `${repoPath} @ ${ref}` };
 }
 
 /** Update package.json version in-place; create file if it does not exist */
